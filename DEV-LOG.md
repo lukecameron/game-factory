@@ -4,6 +4,13 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 0: Scaffolding and Harness Verification
+- **Status**: Completed verification of build toolchain and smoke test harness.
+- **Details**:
+  - Verified compilation of the WASM binary at [game.wasm](file:///home/luke/dev/game-factory/game/game.wasm).
+  - Executed the custom test harness using [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+  - Validated that the harness correctly generates snapshots and the interactive [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html).
+
 ## [2026-06-07] Bootstrap (Pre-Iteration)
 - **Status**: Completed toolchain setup.
 - **Details**:
