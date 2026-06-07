@@ -129,6 +129,11 @@ async function main() {
       
       commitIteration(state.current_iteration);
       
+      // Reload state from disk to capture any agent updates (e.g., tuned delay or reflect_interval)
+      const diskState = loadState();
+      state.delay_between_iterations_seconds = diskState.delay_between_iterations_seconds;
+      state.reflect_interval = diskState.reflect_interval;
+
       if (state.current_iteration % state.reflect_interval === 0) {
         state.stage = 'reflection';
       } else {
@@ -147,6 +152,11 @@ async function main() {
       
       commitReflection(state.current_iteration);
       
+      // Reload state from disk to capture any reflection agent updates
+      const diskState = loadState();
+      state.delay_between_iterations_seconds = diskState.delay_between_iterations_seconds;
+      state.reflect_interval = diskState.reflect_interval;
+
       state.stage = 'iteration';
       state.current_iteration += 1;
       saveState(state);
