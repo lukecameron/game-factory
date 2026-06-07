@@ -2,8 +2,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	kit "github.com/shellcade/kit/v2"
@@ -32,7 +34,9 @@ func (Game) Meta() kit.GameMeta {
 }
 
 func (Game) NewRoom(cfg kit.RoomConfig, svc kit.Services) kit.Handler {
-	return &room{}
+	return &room{
+		services: svc,
+	}
 }
 
 type Point struct {
@@ -166,6 +170,11 @@ type Hazard struct {
 // room is one live room. ALL state lives here (and only here).
 type room struct {
 	kit.Base
+	services    kit.Services
+	pb1         int
+	pb2         int
+	newPB1      bool
+	newPB2      bool
 	frame       *kit.Frame
 	lastTick    time.Time
 	tickRate    time.Duration
@@ -362,6 +371,7 @@ func (rm *room) OnJoin(r kit.Room, p kit.Player) {
 	if len(r.Members()) >= 2 {
 		rm.p2IsBot = false
 	}
+	rm.loadPersonalBests(r)
 	rm.render(r)
 }
 
@@ -508,6 +518,90 @@ func (rm *room) OnWake(r kit.Room) {
 	rm.render(r)
 }
 
+func (rm *room) loadPersonalBests(r kit.Room) {
+	if rm.services.Accounts == nil {
+		return
+	}
+	members := r.Members()
+	if len(members) >= 1 {
+		p1Acct := rm.services.Accounts.For(members[0])
+		if p1Acct != nil {
+			store := p1Acct.Store()
+			if store != nil {
+				val, ok, err := store.Get(context.Background(), "personal_best")
+				if err == nil && ok {
+					rm.pb1, _ = strconv.Atoi(string(val))
+				} else {
+					rm.pb1 = 0
+				}
+			}
+		}
+	}
+	if len(members) >= 2 {
+		p2Acct := rm.services.Accounts.For(members[1])
+		if p2Acct != nil {
+			store := p2Acct.Store()
+			if store != nil {
+				val, ok, err := store.Get(context.Background(), "personal_best")
+				if err == nil && ok {
+					rm.pb2, _ = strconv.Atoi(string(val))
+				} else {
+					rm.pb2 = 0
+				}
+			}
+		}
+	}
+}
+
+func (rm *room) savePersonalBests(r kit.Room) {
+	if rm.services.Accounts == nil {
+		return
+	}
+	members := r.Members()
+	if len(members) >= 2 {
+		// Multiplayer
+		if rm.score1 > rm.pb1 {
+			rm.pb1 = rm.score1
+			rm.newPB1 = true
+			p1Acct := rm.services.Accounts.For(members[0])
+			if p1Acct != nil {
+				store := p1Acct.Store()
+				if store != nil {
+					_ = store.Set(context.Background(), "personal_best", []byte(strconv.Itoa(rm.score1)), kit.MergeMax)
+				}
+			}
+		}
+		if rm.score2 > rm.pb2 {
+			rm.pb2 = rm.score2
+			rm.newPB2 = true
+			p2Acct := rm.services.Accounts.For(members[1])
+			if p2Acct != nil {
+				store := p2Acct.Store()
+				if store != nil {
+					_ = store.Set(context.Background(), "personal_best", []byte(strconv.Itoa(rm.score2)), kit.MergeMax)
+				}
+			}
+		}
+	} else if len(members) == 1 {
+		// Single player / Co-op
+		maxScore := rm.score1
+		if rm.score2 > maxScore {
+			maxScore = rm.score2
+		}
+		if maxScore > rm.pb1 {
+			rm.pb1 = maxScore
+			rm.newPB1 = true
+			p1Acct := rm.services.Accounts.For(members[0])
+			if p1Acct != nil {
+				store := p1Acct.Store()
+				if store != nil {
+					_ = store.Set(context.Background(), "personal_best", []byte(strconv.Itoa(maxScore)), kit.MergeMax)
+				}
+			}
+		}
+	}
+}
+
 func (rm *room) reset(r kit.Room) {
 	rm.snake1 = []Point{
 		{X: 10, Y: 9},
@@ -557,6 +651,10 @@ func (rm *room) reset(r kit.Room) {
 	for i := 0; i < 3; i++ {
 		rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 5))
 	}
+
+	rm.newPB1 = false
+	rm.newPB2 = false
+	rm.loadPersonalBests(r)
 }
 
 func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
@@ -849,6 +947,7 @@ func (rm *room) tick(r kit.Room) {
 	if rm.crashed1 || rm.crashed2 {
 		rm.gameOver = true
 		rm.lastCollisionAt = r.Now()
+		rm.savePersonalBests(r)
 
 		// Post results to the leaderboard
 		members := r.Members()
@@ -1022,22 +1121,22 @@ func (rm *room) render(r kit.Room) {
 	f.Text(1, 2, "▲▼ NEON DUEL ▲▼", headerStyle)
 
 	if len(members) >= 2 {
-		f.Text(1, 20, "P1:", headerStyle)
-		f.Text(1, 23, fmt.Sprintf("%04d", rm.score1), valueStyle)
-		f.Text(1, 30, "P2:", headerStyle)
-		f.Text(1, 33, fmt.Sprintf("%04d", rm.score2), valueStyle)
+		f.Text(1, 19, "P1:", headerStyle)
+		f.Text(1, 22, fmt.Sprintf("%04d", rm.score1), valueStyle)
+		f.Text(1, 27, "P2:", headerStyle)
+		f.Text(1, 30, fmt.Sprintf("%04d", rm.score2), valueStyle)
 	} else {
-		f.Text(1, 20, "S1:", headerStyle)
-		f.Text(1, 23, fmt.Sprintf("%04d", rm.score1), valueStyle)
-		f.Text(1, 30, "S2:", headerStyle)
-		f.Text(1, 33, fmt.Sprintf("%04d", rm.score2), valueStyle)
+		f.Text(1, 19, "S1:", headerStyle)
+		f.Text(1, 22, fmt.Sprintf("%04d", rm.score1), valueStyle)
+		f.Text(1, 27, "S2:", headerStyle)
+		f.Text(1, 30, fmt.Sprintf("%04d", rm.score2), valueStyle)
 	}
 
-	f.Text(1, 40, "HIGH:", headerStyle)
-	f.Text(1, 45, fmt.Sprintf("%04d", rm.highScore), valueStyle)
+	f.Text(1, 36, "HI:", headerStyle)
+	f.Text(1, 39, fmt.Sprintf("%04d", rm.highScore), valueStyle)
 
-	f.Text(1, 51, "THEME:", headerStyle)
-	f.Text(1, 58, theme.Name, valueStyle)
+	f.Text(1, 54, "THEME:", headerStyle)
+	f.Text(1, 60, theme.Name, valueStyle)
 
 	// Pulsing status effect (right-aligned to column 78)
 	var statusText string
@@ -1440,6 +1539,80 @@ func (rm *room) render(r kit.Room) {
 
 	// Send viewport to each member
 	for _, p := range r.Members() {
+		pb := rm.pb1
+		isNewPB := rm.newPB1
+		if len(members) >= 2 && p.AccountID == members[1].AccountID {
+			pb = rm.pb2
+			isNewPB = rm.newPB2
+		}
+
+		currentPB := pb
+		isCurrentlyNewPB := isNewPB
+
+		if len(members) >= 2 {
+			if p.AccountID == members[0].AccountID {
+				if rm.score1 > pb {
+					currentPB = rm.score1
+					isCurrentlyNewPB = true
+				}
+			} else {
+				if rm.score2 > pb {
+					currentPB = rm.score2
+					isCurrentlyNewPB = true
+				}
+			}
+		} else {
+			maxScore := rm.score1
+			if rm.score2 > maxScore {
+				maxScore = rm.score2
+			}
+			if maxScore > pb {
+				currentPB = maxScore
+				isCurrentlyNewPB = true
+			}
+		}
+
+		var pbText string
+		var pbValStyle kit.Style
+		if isCurrentlyNewPB {
+			elapsed := now.Sub(rm.startedAt)
+			pulse := (elapsed.Milliseconds() / 200) % 2
+			if pulse == 0 {
+				pbText = "*NEW*"
+				pbValStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0x00), Attr: kit.AttrBold}
+			} else {
+				pbText = fmt.Sprintf("%04d", currentPB)
+				pbValStyle = kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+			}
+		} else {
+			pbText = fmt.Sprintf("%04d", currentPB)
+			pbValStyle = valueStyle
+		}
+
+		f.Text(1, 45, "PB:", headerStyle)
+		f.Text(1, 48, pbText, pbValStyle)
+
+		if rm.gameOver {
+			var pbMsg string
+			var pbMsgStyle kit.Style
+			if isCurrentlyNewPB {
+				pbMsg = "✨ NEW PERSONAL BEST! ✨"
+				pulse := (now.Sub(rm.startedAt).Milliseconds() / 150) % 3
+				switch pulse {
+				case 0:
+					pbMsgStyle = kit.Style{FG: kit.RGB(0xff, 0xd7, 0x00), Attr: kit.AttrBold}
+				case 1:
+					pbMsgStyle = kit.Style{FG: kit.RGB(0x00, 0xff, 0xff), Attr: kit.AttrBold}
+				default:
+					pbMsgStyle = kit.Style{FG: kit.RGB(0xff, 0x00, 0x7f), Attr: kit.AttrBold}
+				}
+			} else {
+				pbMsg = fmt.Sprintf("Personal Best: %04d", pb)
+				pbMsgStyle = kit.Style{FG: theme.Footer}
+			}
+			f.Text(9, 21, centerText(pbMsg, 38), pbMsgStyle)
+		}
+
 		r.Send(p, f)
 	}
 }

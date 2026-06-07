@@ -92,3 +92,13 @@ steps:
   - key: left
   - advance: 150ms
   - shot: bot_manually_disabled
+
+  # --- Test PB Persistency ---
+  # Force a collision to trigger Game Over and save the new PB
+  - advance: 1200ms
+  - shot: pb_game_over_collision
+  # Restart game and verify PB is loaded and shown in the header
+  - seat: 0
+  - rune: ' '
+  - advance: 150ms
+  - shot: pb_restarted_shows_pb_10
