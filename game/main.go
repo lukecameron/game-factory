@@ -58,6 +58,7 @@ type Palette struct {
 	Footer      kit.Color
 	Key         kit.Color
 	ModalBorder kit.Color
+	Hazard      kit.Color
 }
 
 func getPalettes() []Palette {
@@ -74,6 +75,7 @@ func getPalettes() []Palette {
 			Footer:      kit.RGB(0x00, 0xe5, 0xff), // Light Cyan
 			Key:         kit.RGB(0xff, 0x00, 0x7f), // Neon Pink
 			ModalBorder: kit.RGB(0xff, 0x00, 0x55), // Pink/Red
+			Hazard:      kit.RGB(0xff, 0x00, 0xff), // Neon Magenta
 		},
 		{
 			Name:        "Ocean",
@@ -87,6 +89,7 @@ func getPalettes() []Palette {
 			Footer:      kit.RGB(0x00, 0xcd, 0xcd), // Teal
 			Key:         kit.RGB(0xff, 0x7f, 0x50), // Coral
 			ModalBorder: kit.RGB(0x00, 0xbf, 0xff), // Sky Blue
+			Hazard:      kit.RGB(0xff, 0x55, 0x00), // Bright Orange-Red
 		},
 		{
 			Name:        "Sunset",
@@ -100,6 +103,7 @@ func getPalettes() []Palette {
 			Footer:      kit.RGB(0xff, 0xc0, 0xcb), // Light Orange/Pink
 			Key:         kit.RGB(0xff, 0xd7, 0x00), // Gold
 			ModalBorder: kit.RGB(0xff, 0x8c, 0x00), // Dark Orange
+			Hazard:      kit.RGB(0xff, 0x24, 0x00), // Scarlet/Fiery Red
 		},
 		{
 			Name:        "Matrix",
@@ -113,6 +117,7 @@ func getPalettes() []Palette {
 			Footer:      kit.RGB(0x98, 0xfb, 0x98), // Pale Green
 			Key:         kit.RGB(0x00, 0xff, 0x00), // Neon Green
 			ModalBorder: kit.RGB(0x7f, 0xff, 0x00), // Light Lime
+			Hazard:      kit.RGB(0x00, 0xff, 0xff), // Neon Cyan (contrasts green)
 		},
 		{
 			Name:        "Vaporwave",
@@ -126,8 +131,24 @@ func getPalettes() []Palette {
 			Footer:      kit.RGB(0xee, 0x82, 0xee), // Soft Purple
 			Key:         kit.RGB(0x00, 0xff, 0xff), // Cyan
 			ModalBorder: kit.RGB(0xff, 0x00, 0xff), // Magenta
+			Hazard:      kit.RGB(0x00, 0xff, 0x7f), // Spring Green
 		},
 	}
+}
+
+type GameMode int
+
+const (
+	ModeClassic GameMode = iota
+	ModeHazard
+	ModeMaze
+)
+
+type Hazard struct {
+	Pos        Point
+	Dir        Point
+	MinX, MaxX int
+	MinY, MaxY int
 }
 
 // room is one live room. ALL state lives here (and only here).
@@ -157,6 +178,9 @@ type room struct {
 	// Task 5 Multiplayer & Active player tracking
 	activePlayer    kit.Player
 	activePlayerSet bool
+
+	gameMode GameMode
+	hazards  []Hazard
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -185,6 +209,60 @@ func (rm *room) getActivePlayer(r kit.Room) kit.Player {
 	return rm.activePlayer
 }
 
+func (rm *room) initHazards() {
+	rm.hazards = []Hazard{}
+	if rm.gameMode == ModeClassic {
+		return
+	}
+	if rm.gameMode == ModeHazard {
+		rm.hazards = []Hazard{
+			{Pos: Point{X: 5, Y: 3}, Dir: Point{X: 1, Y: 0}, MinX: 5, MaxX: 33, MinY: 3, MaxY: 3},
+			{Pos: Point{X: 33, Y: 14}, Dir: Point{X: -1, Y: 0}, MinX: 5, MaxX: 33, MinY: 14, MaxY: 14},
+			{Pos: Point{X: 8, Y: 4}, Dir: Point{X: 0, Y: 1}, MinX: 8, MaxX: 8, MinY: 4, MaxY: 13},
+			{Pos: Point{X: 30, Y: 13}, Dir: Point{X: 0, Y: -1}, MinX: 30, MaxX: 30, MinY: 4, MaxY: 13},
+		}
+	} else if rm.gameMode == ModeMaze {
+		rm.hazards = []Hazard{
+			{Pos: Point{X: 5, Y: 7}, Dir: Point{X: 1, Y: 0}, MinX: 5, MaxX: 33, MinY: 7, MaxY: 7},
+			{Pos: Point{X: 33, Y: 10}, Dir: Point{X: -1, Y: 0}, MinX: 5, MaxX: 33, MinY: 10, MaxY: 10},
+			{Pos: Point{X: 5, Y: 2}, Dir: Point{X: 0, Y: 1}, MinX: 5, MaxX: 5, MinY: 2, MaxY: 15},
+			{Pos: Point{X: 33, Y: 15}, Dir: Point{X: 0, Y: -1}, MinX: 33, MaxX: 33, MinY: 2, MaxY: 15},
+		}
+	}
+}
+
+func (rm *room) isMazeWall(p Point) bool {
+	if rm.gameMode != ModeMaze {
+		return false
+	}
+	// Wall 1 & 3: X from 8 to 14, Y = 4 or 13
+	if p.X >= 8 && p.X <= 14 && (p.Y == 4 || p.Y == 13) {
+		return true
+	}
+	// Wall 2 & 4: X from 24 to 30, Y = 4 or 13
+	if p.X >= 24 && p.X <= 30 && (p.Y == 4 || p.Y == 13) {
+		return true
+	}
+	// Wall 5 & 6: X = 19, Y from 2 to 5 or 12 to 15
+	if p.X == 19 && ((p.Y >= 2 && p.Y <= 5) || (p.Y >= 12 && p.Y <= 15)) {
+		return true
+	}
+	return false
+}
+
+func (rm *room) getModeName() string {
+	switch rm.gameMode {
+	case ModeClassic:
+		return "CLASSIC"
+	case ModeHazard:
+		return "HAZARDS"
+	case ModeMaze:
+		return "MAZE"
+	default:
+		return "CLASSIC"
+	}
+}
+
 func (rm *room) OnStart(r kit.Room) {
 	r.SetInputContext(kit.CtxNav)
 	rm.lastTick = r.Now()
@@ -202,10 +280,14 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.score = 0
 	rm.gameOver = false
 	rm.themeIndex = 0
+	rm.gameMode = ModeClassic
 	rm.popups = []ScorePopup{}
 	rm.lastCollisionAt = time.Time{}
 	rm.activePlayer = kit.Player{}
 	rm.activePlayerSet = false
+
+	// Initialize hazards
+	rm.initHazards()
 
 	// Generate initial food & obstacles
 	rm.food = rm.randomFreePoint(r, 0)
@@ -270,6 +352,12 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 		rm.themeIndex = (rm.themeIndex + 1) % len(palettes)
 	}
 
+	// Switch Mode support
+	if in.Kind == kit.InputRune && (in.Rune == 'm' || in.Rune == 'M') {
+		rm.gameMode = (rm.gameMode + 1) % 3
+		rm.reset(r)
+	}
+
 	rm.render(r)
 }
 
@@ -310,6 +398,9 @@ func (rm *room) reset(r kit.Room) {
 	rm.popups = []ScorePopup{}
 	rm.lastCollisionAt = time.Time{}
 
+	// Initialize hazards
+	rm.initHazards()
+
 	// Regenerate food and obstacles
 	rm.food = rm.randomFreePoint(r, 0)
 	rm.obstacles = []Point{}
@@ -324,6 +415,11 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 		x := r.Rand().Intn(39)
 		y := r.Rand().Intn(18)
 		p := Point{X: x, Y: y}
+
+		// Check maze wall collision
+		if rm.isMazeWall(p) {
+			continue
+		}
 
 		// Check snake collision
 		inSnake := false
@@ -351,6 +447,18 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 			}
 		}
 		if inObstacle {
+			continue
+		}
+
+		// Check patrolling hazards collision
+		inHazard := false
+		for _, hp := range rm.hazards {
+			if hp.Pos == p {
+				inHazard = true
+				break
+			}
+		}
+		if inHazard {
 			continue
 		}
 
@@ -383,6 +491,7 @@ func (rm *room) tick(r kit.Room) {
 
 	// Save tail segment position before we shift, in case we eat food and grow
 	tail := rm.snake[len(rm.snake)-1]
+	oldHead := rm.snake[0]
 
 	// Move the body: shift all elements down
 	for i := len(rm.snake) - 1; i > 0; i-- {
@@ -408,6 +517,29 @@ func (rm *room) tick(r kit.Room) {
 	// Update last moved direction
 	rm.lastMovedDir = rm.entityDir
 
+	// Store old hazard positions for swap collision check
+	oldHazards := make([]Point, len(rm.hazards))
+	for i, h := range rm.hazards {
+		oldHazards[i] = h.Pos
+	}
+
+	// Update Patrolling Hazards
+	for i := range rm.hazards {
+		h := &rm.hazards[i]
+		nextX := h.Pos.X + h.Dir.X
+		nextY := h.Pos.Y + h.Dir.Y
+
+		// Check if out of bounds
+		if nextX < h.MinX || nextX > h.MaxX || nextY < h.MinY || nextY > h.MaxY {
+			h.Dir.X = -h.Dir.X
+			h.Dir.Y = -h.Dir.Y
+			nextX = h.Pos.X + h.Dir.X
+			nextY = h.Pos.Y + h.Dir.Y
+		}
+		h.Pos.X = nextX
+		h.Pos.Y = nextY
+	}
+
 	// 1. Check self-collision
 	for _, sp := range rm.snake[1:] {
 		if rm.snake[0] == sp {
@@ -429,6 +561,40 @@ func (rm *room) tick(r kit.Room) {
 	// 2. Check obstacle-collision
 	for _, op := range rm.obstacles {
 		if rm.snake[0] == op {
+			rm.gameOver = true
+			rm.lastCollisionAt = r.Now()
+			r.Post(kit.Result{
+				Rankings: []kit.PlayerResult{
+					{
+						Player: rm.getActivePlayer(r),
+						Metric: rm.score,
+						Status: kit.StatusFinished,
+					},
+				},
+			})
+			return
+		}
+	}
+
+	// 2.5 Check maze-wall collision
+	if rm.isMazeWall(rm.snake[0]) {
+		rm.gameOver = true
+		rm.lastCollisionAt = r.Now()
+		r.Post(kit.Result{
+			Rankings: []kit.PlayerResult{
+				{
+					Player: rm.getActivePlayer(r),
+					Metric: rm.score,
+					Status: kit.StatusFinished,
+				},
+			},
+		})
+		return
+	}
+
+	// 2.6 Check patrolling hazard collision (including swap/phase-through check)
+	for i, hp := range rm.hazards {
+		if rm.snake[0] == hp.Pos || (rm.snake[0] == oldHazards[i] && oldHead == hp.Pos) {
 			rm.gameOver = true
 			rm.lastCollisionAt = r.Now()
 			r.Post(kit.Result{
@@ -555,10 +721,24 @@ func (rm *room) render(r kit.Room) {
 	// 3. Draw Grid Dots
 	for y := 0; y < 18; y++ {
 		for x := 0; x < 39; x++ {
-			if occupied[Point{X: x, Y: y}] {
+			p := Point{X: x, Y: y}
+			if occupied[p] || rm.isMazeWall(p) {
 				continue
 			}
 			f.SetRune(3+y, 1+x*2, '·', dotStyle)
+		}
+	}
+
+	// 3.5 Draw Maze Walls if in ModeMaze
+	if rm.gameMode == ModeMaze {
+		wallStyle := kit.Style{FG: theme.Border, Attr: kit.AttrBold}
+		for y := 0; y < 18; y++ {
+			for x := 0; x < 39; x++ {
+				p := Point{X: x, Y: y}
+				if rm.isMazeWall(p) {
+					f.SetWide(3+y, 1+x*2, '▒', wallStyle)
+				}
+			}
 		}
 	}
 
@@ -609,6 +789,35 @@ func (rm *room) render(r kit.Room) {
 		f.SetWide(3+op.Y, 1+op.X*2, '▲', obstacleStyle)
 	}
 
+	// 5.5 Draw Patrolling Hazards (Neon diamond with pulse and head warning flash)
+	for _, hp := range rm.hazards {
+		head := rm.snake[0]
+		distX := head.X - hp.Pos.X
+		if distX < 0 {
+			distX = -distX
+		}
+		distY := head.Y - hp.Pos.Y
+		if distY < 0 {
+			distY = -distY
+		}
+		dist := distX + distY
+
+		var hazardStyle kit.Style
+		if dist <= 2 && rm.gameStarted && !rm.gameOver {
+			flashCycle := (elapsed.Milliseconds() / 100) % 2
+			if flashCycle == 0 {
+				hazardStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
+			} else {
+				hazardStyle = kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+			}
+		} else {
+			hazardPulse := 0.75 + 0.25*math.Sin(float64(elapsed.Milliseconds())*0.008)
+			hazardStyle = kit.Style{FG: brightenColor(theme.Hazard, hazardPulse), Attr: kit.AttrBold}
+		}
+
+		f.SetWide(3+hp.Pos.Y, 1+hp.Pos.X*2, '❖', hazardStyle)
+	}
+
 	// 6. Draw Snake (Neon gradient from SnakeHead to SnakeTail, flowing dynamically)
 	n := len(rm.snake)
 	timeShift := float64(now.Sub(rm.startedAt).Milliseconds()%2000) / 2000.0
@@ -652,28 +861,35 @@ func (rm *room) render(r kit.Room) {
 	}
 	rm.popups = activePopups
 
-	// 7.5 Draw Divider on row 21 with active player text in multiplayer
+	// 7.5 Draw Divider on row 21 with Mode and active player text
+	var dividerText string
 	if len(r.Members()) > 1 && rm.activePlayerSet {
-		activeText := fmt.Sprintf(" ACTIVE SEAT: %s ", rm.activePlayer.Handle)
-		rm.drawDividerWithText(f, 21, activeText, now)
+		dividerText = fmt.Sprintf(" MODE: %s │ ACTIVE SEAT: %s ", rm.getModeName(), rm.activePlayer.Handle)
+	} else {
+		dividerText = fmt.Sprintf(" MODE: %s ", rm.getModeName())
 	}
+	rm.drawDividerWithText(f, 21, dividerText, now)
 
 	// 8. Draw Footer Content
 	f.Text(22, 4, "CONTROLS:", footerStyle)
-	col := 15
+	col := 13
 	col = f.Text(22, col, " [", footerStyle)
 	col = f.Text(22, col, "WASD", keyStyle)
-	col = f.Text(22, col, "/Arrows] Move", footerStyle)
+	col = f.Text(22, col, "] Move", footerStyle)
 
-	col = f.Text(22, 38, " [", footerStyle)
+	col = f.Text(22, 27, " [", footerStyle)
 	col = f.Text(22, col, "T", keyStyle)
 	col = f.Text(22, col, "] Theme", footerStyle)
 
-	col = f.Text(22, 49, " [", footerStyle)
+	col = f.Text(22, 39, " [", footerStyle)
+	col = f.Text(22, col, "M", keyStyle)
+	col = f.Text(22, col, "] Mode", footerStyle)
+
+	col = f.Text(22, 50, " [", footerStyle)
 	col = f.Text(22, col, "Space", keyStyle)
 	col = f.Text(22, col, "] Pause", footerStyle)
 
-	col = f.Text(22, 63, " [", footerStyle)
+	col = f.Text(22, 67, " [", footerStyle)
 	col = f.Text(22, col, "Esc", keyStyle)
 	col = f.Text(22, col, "] Quit", footerStyle)
 

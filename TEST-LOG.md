@@ -4,6 +4,28 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 6: Game Modes, Patrolling Hazards, and Custom Maze Layout Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Initial load rendering in classic mode.
+  - Theme switching and multiplayer active seat updates.
+  - Normal gameplay movement and food eating.
+  - Classic static obstacle collision and Game Over restart.
+  - Mode switching to **Hazards**:
+    - Pressing 'm' switches to Hazards mode, initializing 4 patrolling hazards with theme-colored diamond `❖` glyphs.
+    - Advanced time by 300ms to verify hazard movement along their patrolled segments.
+  - Mode switching to **Maze**:
+    - Pressing 'm' switches to Maze mode, rendering symmetric neon maze walls `▒` and patrolling hazards at safe paths.
+    - Advanced time by 300ms to verify hazard movement in the maze layout.
+  - Return to **Classic** mode:
+    - Pressing 'm' cycles back to Classic mode.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - Cycling modes with a single key press ('m') restarts the game instantly and is extremely responsive, making it fun to try different layouts.
+  - The patrolling hazards look extremely premium with their slow sinusoidal breathing/pulsing colors, and the proximity-based warning flashes (white/red when <= 2 tiles) add intense visual feedback.
+  - The maze mode feels like a completely different game, requiring tight navigation in corridors while avoiding patrolling security drones.
+  - The swap-collision protection is incredibly robust; passing through hazards head-on correctly registers a collision instantly.
+
 ## [2026-06-07] Task 5: Leaderboards, Dynamic Speed Scaling, and Hot-Seat Multiplayer UI Test
 - **Status**: Passed successfully.
 - **Coverage**:

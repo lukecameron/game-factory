@@ -36,3 +36,21 @@ steps:
   - rune: ' '
   - advance: 150ms
   - shot: restarted
+  # Switch to HAZARDS mode (press 'm')
+  - rune: 'm'
+  - advance: 150ms
+  - shot: mode_hazards_start
+  # Advance to let hazards move
+  - advance: 300ms
+  - shot: mode_hazards_moving
+  # Switch to MAZE mode (press 'm')
+  - rune: 'm'
+  - advance: 150ms
+  - shot: mode_maze_start
+  # Advance to let hazards move in maze
+  - advance: 300ms
+  - shot: mode_maze_moving
+  # Switch back to CLASSIC mode (press 'm')
+  - rune: 'm'
+  - advance: 150ms
+  - shot: mode_classic_returned

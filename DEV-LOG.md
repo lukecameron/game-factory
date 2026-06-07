@@ -4,6 +4,18 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 6: Game Modes, Patrolling Hazards, and Custom Maze Layout
+- **Status**: Completed.
+- **Details**:
+  - Implemented 3 game modes: `CLASSIC`, `HAZARDS`, and `MAZE`.
+  - Added mode cycling support: pressing the `M` key cycles modes and resets the game session immediately.
+  - Implemented static maze walls for `MAZE` mode: designed a beautiful, symmetric, and highly playable neon maze barrier layout.
+  - Added dynamic patrolling hazards: security drones/hazards (`❖` glyph) that move back and forth along predetermined paths.
+  - Custom hazard styles: designed custom truecolor hazard palette entries matching all 5 themes. Hazards pulse dynamically and flash white/red warning colors when the snake's head is within 2 cells.
+  - Collision checks: implemented comprehensive hazard and maze wall collision checks, including a swap-collision safety check to prevent passing through moving hazards.
+  - UI layout improvements: updated the row 21 divider to display the active game mode, and restructured the footer controls to avoid overlaps and respect TUI constraints.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 5: Leaderboards, Dynamic Speed Scaling, and Hot-Seat Multiplayer UI
 - **Status**: Completed.
 - **Details**:
