@@ -4,6 +4,18 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 5: Leaderboards, Dynamic Speed Scaling, and Hot-Seat Multiplayer UI
+- **Status**: Completed.
+- **Details**:
+  - Implemented static leaderboard registration in GameMeta. Posts the final score to the leaderboard on collision (game over) using `r.Post`.
+  - Added active seat tracking using `activePlayer` on the room struct, updating it during `OnJoin` and `OnInput` calls.
+  - Revamped the top header layout dynamically. In multiplayer mode (`len(r.Members()) > 1`), a dedicated `SEAT: <handle>` indicator appears next to the score/theme info, with precise mathematical padding to avoid any cell overlaps or text collisions.
+  - Implemented a centered bottom-divider status text: When in multiplayer mode, the bottom double-line divider displays ` ACTIVE SEAT: <handle> ` centered inside the divider line.
+  - Updated the centered Game Over modal: Displays the active seat handle along with the final score, e.g. `FINAL SCORE: 0010 (seat0)`.
+  - Added dynamic difficulty/speed scaling: Eaten food increases the tick rate (decreases tick duration by 5ms for every 10 points), clamped at 60ms min.
+  - Added tick rate resetting: Resetting the game properly restores the tick rate back to 150ms.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 4: Premium Aesthetics, Custom Palettes, & Micro-animations
 - **Status**: Completed.
 - **Details**:

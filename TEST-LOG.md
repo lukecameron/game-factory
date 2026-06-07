@@ -4,6 +4,32 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 5: Leaderboards, Dynamic Speed Scaling, and Hot-Seat Multiplayer UI Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Initial load rendering in multiplayer mode (2 seats joined).
+  - Theme switching verification:
+    - Pressing 't' cycles theme from **Cyberpunk** to **Ocean**.
+  - Active seat switching verification:
+    - Switching active seat to `seat1` updates the active seat indicator in the header to `SEAT: seat1` and the bottom-divider text to `ACTIVE SEAT: seat1`.
+    - Subsequent inputs from `seat1` (pressing 't') cycle theme to **Sunset**.
+    - Switching seat back to `seat0` updates header/divider to `SEAT: seat0` and `ACTIVE SEAT: seat0`.
+    - Input from `seat0` cycles theme to **Matrix**.
+  - Snake movement and food eating verification.
+  - Collision detection:
+    - Crashing into the obstacle registers Game Over.
+    - Verified that the Game Over modal renders the final score along with the player seat that died: `FINAL SCORE: 0010 (seat0)`.
+    - Verifies that leaderboard score is correctly posted on game over.
+  - Restart confirmation restores status to PLAYING and resets speed to base (150ms).
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - The multiplayer seat switching is immediate and visual, and the highlighted seat in both the header and the bottom divider makes hot-seat feel completely integrated.
+  - Spacing of the header elements is clean and has perfect 1-cell gaps, resolving any overlaps or text truncation.
+  - Dynamic speed scaling (speeding up as you eat more food) makes the game feel progressively intense, adding a real arcade challenge.
+  - Resetting speed on restart keeps the restart loop very fair and satisfying.
+
+---
+
 ## [2026-06-07] Task 4: Premium Aesthetics, Themes, and Animations Test
 - **Status**: Passed successfully.
 - **Coverage**:

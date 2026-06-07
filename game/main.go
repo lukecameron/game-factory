@@ -22,6 +22,12 @@ func (Game) Meta() kit.GameMeta {
 		MinPlayers:       1,
 		MaxPlayers:       4,
 		HeartbeatMS:      50, // 20 ticks per second
+		Leaderboard: &kit.LeaderboardSpec{
+			MetricLabel: "Score",
+			Direction:   kit.HigherBetter,
+			Aggregation: kit.BestResult,
+			Format:      kit.Integer,
+		},
 	}
 }
 
@@ -57,7 +63,7 @@ type Palette struct {
 func getPalettes() []Palette {
 	return []Palette{
 		{
-			Name:        "Cyberpunk Neon",
+			Name:        "Cyberpunk",
 			Border:      kit.RGB(0x8a, 0x2b, 0xe2), // Neon Violet
 			Header:      kit.RGB(0x00, 0xff, 0xff), // Aqua/Cyan
 			Dot:         kit.RGB(0x33, 0x33, 0x33), // Dark Gray
@@ -70,7 +76,7 @@ func getPalettes() []Palette {
 			ModalBorder: kit.RGB(0xff, 0x00, 0x55), // Pink/Red
 		},
 		{
-			Name:        "Neon Ocean",
+			Name:        "Ocean",
 			Border:      kit.RGB(0x00, 0x00, 0xcd), // Deep Blue
 			Header:      kit.RGB(0xe0, 0xff, 0xff), // Light Cyan
 			Dot:         kit.RGB(0x11, 0x22, 0x44), // Dark Navy
@@ -83,7 +89,7 @@ func getPalettes() []Palette {
 			ModalBorder: kit.RGB(0x00, 0xbf, 0xff), // Sky Blue
 		},
 		{
-			Name:        "Sunset Glow",
+			Name:        "Sunset",
 			Border:      kit.RGB(0xdc, 0x14, 0x3c), // Crimson Red
 			Header:      kit.RGB(0xff, 0xd7, 0x00), // Gold
 			Dot:         kit.RGB(0x44, 0x22, 0x22), // Dark Rust
@@ -96,7 +102,7 @@ func getPalettes() []Palette {
 			ModalBorder: kit.RGB(0xff, 0x8c, 0x00), // Dark Orange
 		},
 		{
-			Name:        "Matrix Grid",
+			Name:        "Matrix",
 			Border:      kit.RGB(0x00, 0x64, 0x00), // Dark Green
 			Header:      kit.RGB(0x00, 0xff, 0x00), // Neon Green
 			Dot:         kit.RGB(0x00, 0x22, 0x00), // Very Dark Green
@@ -147,6 +153,36 @@ type room struct {
 	themeIndex      int
 	popups          []ScorePopup
 	lastCollisionAt time.Time
+
+	// Task 5 Multiplayer & Active player tracking
+	activePlayer    kit.Player
+	activePlayerSet bool
+}
+
+func (rm *room) updateActivePlayer(r kit.Room) {
+	members := r.Members()
+	if len(members) == 0 {
+		return
+	}
+	// If active player is not set or not in the room anymore, choose the first available member
+	found := false
+	if rm.activePlayerSet {
+		for _, m := range members {
+			if m.AccountID == rm.activePlayer.AccountID {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		rm.activePlayer = members[0]
+		rm.activePlayerSet = true
+	}
+}
+
+func (rm *room) getActivePlayer(r kit.Room) kit.Player {
+	rm.updateActivePlayer(r)
+	return rm.activePlayer
 }
 
 func (rm *room) OnStart(r kit.Room) {
@@ -168,6 +204,8 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.themeIndex = 0
 	rm.popups = []ScorePopup{}
 	rm.lastCollisionAt = time.Time{}
+	rm.activePlayer = kit.Player{}
+	rm.activePlayerSet = false
 
 	// Generate initial food & obstacles
 	rm.food = rm.randomFreePoint(r, 0)
@@ -177,9 +215,14 @@ func (rm *room) OnStart(r kit.Room) {
 	}
 }
 
-func (rm *room) OnJoin(r kit.Room, p kit.Player) { rm.render(r) }
+func (rm *room) OnJoin(r kit.Room, p kit.Player) {
+	rm.updateActivePlayer(r)
+	rm.render(r)
+}
 
 func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
+	rm.activePlayer = p
+	rm.activePlayerSet = true
 	action := kit.Resolve(in, kit.CtxNav)
 
 	// Custom support for WASD controls
@@ -263,6 +306,7 @@ func (rm *room) reset(r kit.Room) {
 	rm.gameStarted = true
 	rm.lastTick = r.Now()
 	rm.startedAt = r.Now()
+	rm.tickRate = 150 * time.Millisecond
 	rm.popups = []ScorePopup{}
 	rm.lastCollisionAt = time.Time{}
 
@@ -369,6 +413,15 @@ func (rm *room) tick(r kit.Room) {
 		if rm.snake[0] == sp {
 			rm.gameOver = true
 			rm.lastCollisionAt = r.Now()
+			r.Post(kit.Result{
+				Rankings: []kit.PlayerResult{
+					{
+						Player: rm.getActivePlayer(r),
+						Metric: rm.score,
+						Status: kit.StatusFinished,
+					},
+				},
+			})
 			return
 		}
 	}
@@ -378,6 +431,15 @@ func (rm *room) tick(r kit.Room) {
 		if rm.snake[0] == op {
 			rm.gameOver = true
 			rm.lastCollisionAt = r.Now()
+			r.Post(kit.Result{
+				Rankings: []kit.PlayerResult{
+					{
+						Player: rm.getActivePlayer(r),
+						Metric: rm.score,
+						Status: kit.StatusFinished,
+					},
+				},
+			})
 			return
 		}
 	}
@@ -390,6 +452,13 @@ func (rm *room) tick(r kit.Room) {
 		if rm.score > rm.highScore {
 			rm.highScore = rm.score
 		}
+
+		// Dynamic difficulty speed up: decrease tick rate as score increases (clamp at 60ms)
+		speedMs := 150 - (rm.score/10)*5
+		if speedMs < 60 {
+			speedMs = 60
+		}
+		rm.tickRate = time.Duration(speedMs) * time.Millisecond
 
 		// Add score popup
 		palettes := getPalettes()
@@ -430,18 +499,29 @@ func (rm *room) render(r kit.Room) {
 	// 1. Draw Border (Animates dynamically)
 	rm.drawBorder(f, now)
 
+	rm.updateActivePlayer(r)
+
 	// 2. Draw Header Content
 	f.Text(1, 2, "▲▼ NEON SNAKE ▲▼", headerStyle)
-	f.Text(1, 22, "SCORE:", headerStyle)
-	f.Text(1, 28, fmt.Sprintf("%04d", rm.score), valueStyle)
+	f.Text(1, 19, "SCORE:", headerStyle)
+	f.Text(1, 25, fmt.Sprintf("%04d", rm.score), valueStyle)
 
-	f.Text(1, 35, "HIGH:", headerStyle)
-	f.Text(1, 41, fmt.Sprintf("%04d", rm.highScore), valueStyle)
+	f.Text(1, 30, "HIGH:", headerStyle)
+	f.Text(1, 35, fmt.Sprintf("%04d", rm.highScore), valueStyle)
 
-	f.Text(1, 48, "THEME:", headerStyle)
-	f.Text(1, 54, theme.Name, valueStyle)
+	// In multiplayer, show active player handle
+	var themeStartCol int
+	if len(r.Members()) > 1 && rm.activePlayerSet {
+		f.Text(1, 40, "SEAT:", headerStyle)
+		f.Text(1, 45, rm.activePlayer.Handle, valueStyle)
+		themeStartCol = 52
+	} else {
+		themeStartCol = 40
+	}
+	f.Text(1, themeStartCol, "THEME:", headerStyle)
+	f.Text(1, themeStartCol+7, theme.Name, valueStyle)
 
-	// Pulsing status effect
+	// Pulsing status effect (right-aligned to column 78)
 	var statusText string
 	var statusStyle kit.Style
 	if rm.gameOver {
@@ -460,7 +540,7 @@ func (rm *room) render(r kit.Room) {
 			statusStyle = kit.Style{FG: brightenColor(theme.Key, 0.6)}
 		}
 	}
-	f.Text(1, 64, "STATUS: "+statusText, statusStyle)
+	f.Text(1, 78-len(statusText), statusText, statusStyle)
 
 	// Create lookup for coordinates to skip drawing grid dots
 	occupied := make(map[Point]bool)
@@ -572,6 +652,12 @@ func (rm *room) render(r kit.Room) {
 	}
 	rm.popups = activePopups
 
+	// 7.5 Draw Divider on row 21 with active player text in multiplayer
+	if len(r.Members()) > 1 && rm.activePlayerSet {
+		activeText := fmt.Sprintf(" ACTIVE SEAT: %s ", rm.activePlayer.Handle)
+		rm.drawDividerWithText(f, 21, activeText, now)
+	}
+
 	// 8. Draw Footer Content
 	f.Text(22, 4, "CONTROLS:", footerStyle)
 	col := 15
@@ -615,8 +701,14 @@ func (rm *room) render(r kit.Room) {
 		}
 		f.Text(10, 35, "GAME OVER", titleStyle)
 
-		f.Text(11, 28, fmt.Sprintf("FINAL SCORE: %04d", rm.score), textStyle)
-		f.Text(11, 47, "★", infoStyle)
+		var scoreText string
+		if len(r.Members()) > 1 && rm.activePlayerSet {
+			scoreText = fmt.Sprintf("FINAL SCORE: %04d (%s)", rm.score, rm.activePlayer.Handle)
+		} else {
+			scoreText = fmt.Sprintf("FINAL SCORE: %04d", rm.score)
+		}
+		f.Text(11, 24, scoreText, textStyle)
+		f.Text(11, 24+len(scoreText)+2, "★", infoStyle)
 
 		f.Text(13, 25, "Press [SPACE] to Restart", subTextStyle)
 	}
@@ -691,6 +783,24 @@ func (rm *room) drawBorder(f *kit.Frame, now time.Time) {
 		}
 		f.SetRune(r, 0, '║', rm.getBorderStyle(r, 0, now))
 		f.SetRune(r, 79, '║', rm.getBorderStyle(r, 79, now))
+	}
+}
+
+func (rm *room) drawDividerWithText(f *kit.Frame, row int, text string, now time.Time) {
+	f.SetRune(row, 0, '╠', rm.getBorderStyle(row, 0, now))
+	f.SetRune(row, 79, '╣', rm.getBorderStyle(row, 79, now))
+
+	textLen := len(text)
+	startCol := 40 - textLen/2
+	endCol := startCol + textLen
+
+	for c := 1; c < 79; c++ {
+		if c >= startCol && c < endCol {
+			char := rune(text[c-startCol])
+			f.SetRune(row, c, char, kit.Style{FG: getPalettes()[rm.themeIndex].Header, Attr: kit.AttrBold})
+		} else {
+			f.SetRune(row, c, '═', rm.getBorderStyle(row, c, now))
+		}
 	}
 }
 

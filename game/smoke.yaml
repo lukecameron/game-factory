@@ -1,15 +1,22 @@
 seed: 1
-seats: 1
+seats: 2
 heartbeat: 50ms
 steps:
   - wake: null
   - shot: start
-  # Switch theme to Neon Ocean (press 't')
+  # Switch theme to Neon Ocean (press 't' from seat 0)
   - rune: 't'
   - shot: theme_neon_ocean
-  # Switch theme to Sunset Glow (press 't')
+  # Switch seat to seat 1
+  - seat: 1
+  # Press 't' from seat 1 to switch theme to Sunset Glow and trigger seat display update
   - rune: 't'
-  - shot: theme_sunset_glow
+  - shot: seat_1_active
+  # Switch seat back to seat 0
+  - seat: 0
+  # Press 't' from seat 0 to cycle to Matrix Grid theme
+  - rune: 't'
+  - shot: seat_0_active
   # Move right 4 ticks to X=23, Y=9
   - advance: 600ms
   - shot: moved_right
