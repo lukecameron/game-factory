@@ -57,6 +57,15 @@ type ScorePopup struct {
 	CreatedAt time.Time
 }
 
+type Particle struct {
+	X, Y      float64
+	VX, VY    float64
+	Glyph     rune
+	Color     kit.Color
+	CreatedAt time.Time
+	Duration  time.Duration
+}
+
 type Palette struct {
 	Name        string
 	Border      kit.Color
@@ -254,6 +263,13 @@ type room struct {
 	bombSpawnedAt    time.Time
 	bombExploding    bool
 	bombExplodedAt   time.Time
+
+	// Task 14 Screen FX & Particles
+	particles       []Particle
+	screenFXEnabled bool
+	shakeStartedAt  time.Time
+	shakeExpiry     time.Time
+	flashExpiry     time.Time
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -352,8 +368,13 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.gridDotsEnabled = true
 	rm.startSpeedIdx = 2 // 150ms
 	rm.audioEnabled = true
+	rm.screenFXEnabled = true
 	rm.bombActive = false
 	rm.bombExploding = false
+	rm.particles = []Particle{}
+	rm.shakeStartedAt = time.Time{}
+	rm.shakeExpiry = time.Time{}
+	rm.flashExpiry = time.Time{}
 
 	speeds := []int{100, 120, 150, 180, 200}
 	rm.tickRate = time.Duration(speeds[rm.startSpeedIdx]) * time.Millisecond
@@ -575,6 +596,35 @@ func (rm *room) OnWake(r kit.Room) {
 		}
 	}
 
+	// Update screen shake, flash, and particles
+	isPaused := !rm.gameStarted || rm.settingsOpen
+	if isPaused && elapsedSinceLastWake > 0 {
+		if !rm.shakeExpiry.IsZero() {
+			rm.shakeExpiry = rm.shakeExpiry.Add(elapsedSinceLastWake)
+		}
+		if !rm.flashExpiry.IsZero() {
+			rm.flashExpiry = rm.flashExpiry.Add(elapsedSinceLastWake)
+		}
+		for i := range rm.particles {
+			rm.particles[i].CreatedAt = rm.particles[i].CreatedAt.Add(elapsedSinceLastWake)
+		}
+	} else if elapsedSinceLastWake > 0 {
+		// Update particles
+		var activeParticles []Particle
+		for _, p := range rm.particles {
+			age := now.Sub(p.CreatedAt)
+			if age < p.Duration {
+				dt := elapsedSinceLastWake.Seconds()
+				p.X += p.VX * dt
+				p.Y += p.VY * dt
+				if p.X >= 0 && p.X < 39 && p.Y >= 0 && p.Y < 18 {
+					activeParticles = append(activeParticles, p)
+				}
+			}
+		}
+		rm.particles = activeParticles
+	}
+
 	// Update bomb countdown and explosion lifecycle
 	if rm.gameStarted && !rm.gameOver && !rm.settingsOpen && rm.gameMode == ModeBomb {
 		if rm.bombActive {
@@ -584,6 +634,12 @@ func (rm *room) OnWake(r kit.Room) {
 				rm.bombExploding = true
 				rm.bombExplodedAt = now
 				rm.triggerAudio("\a\a\a")
+
+				palettes := getPalettes()
+				theme := palettes[rm.themeIndex]
+				rm.spawnParticles(r, rm.bombPos.X, rm.bombPos.Y, theme.Obstacle, 35, "bomb")
+				rm.triggerFlash(r, 400*time.Millisecond)
+				rm.triggerShake(r, 600*time.Millisecond)
 			}
 		} else if rm.bombExploding {
 			elapsed := now.Sub(rm.bombExplodedAt)
@@ -725,6 +781,10 @@ func (rm *room) reset(r kit.Room) {
 	rm.tickRate = time.Duration(startSpeed) * time.Millisecond
 	rm.popups = []ScorePopup{}
 	rm.lastCollisionAt = time.Time{}
+	rm.particles = []Particle{}
+	rm.shakeStartedAt = time.Time{}
+	rm.shakeExpiry = time.Time{}
+	rm.flashExpiry = time.Time{}
 
 	rm.powerUpActive = false
 	rm.p1PowerUpType = ""
@@ -1055,12 +1115,24 @@ func (rm *room) tick(r kit.Room) {
 				rm.bombExploding = true
 				rm.bombExplodedAt = now
 				c1Bomb = true
+
+				palettes := getPalettes()
+				theme := palettes[rm.themeIndex]
+				rm.spawnParticles(r, rm.bombPos.X, rm.bombPos.Y, theme.Obstacle, 35, "bomb")
+				rm.triggerFlash(r, 400*time.Millisecond)
+				rm.triggerShake(r, 600*time.Millisecond)
 			}
 			if rm.snake2[0] == rm.bombPos {
 				rm.bombActive = false
 				rm.bombExploding = true
 				rm.bombExplodedAt = now
 				c2Bomb = true
+
+				palettes := getPalettes()
+				theme := palettes[rm.themeIndex]
+				rm.spawnParticles(r, rm.bombPos.X, rm.bombPos.Y, theme.Obstacle, 35, "bomb")
+				rm.triggerFlash(r, 400*time.Millisecond)
+				rm.triggerShake(r, 600*time.Millisecond)
 			}
 		}
 		if rm.bombExploding {
@@ -1120,6 +1192,17 @@ func (rm *room) tick(r kit.Room) {
 		rm.lastCollisionAt = r.Now()
 		rm.triggerAudio("\a\a\a")
 		rm.savePersonalBests(r)
+
+		rm.triggerFlash(r, 300*time.Millisecond)
+		rm.triggerShake(r, 500*time.Millisecond)
+		palettes := getPalettes()
+		theme := palettes[rm.themeIndex]
+		if rm.crashed1 {
+			rm.spawnParticles(r, rm.snake1[0].X, rm.snake1[0].Y, theme.SnakeHead, 25, "crash")
+		}
+		if rm.crashed2 {
+			rm.spawnParticles(r, rm.snake2[0].X, rm.snake2[0].Y, theme.Snake2Head, 25, "crash")
+		}
 
 		// Post results to the leaderboard
 		members := r.Members()
@@ -1246,6 +1329,11 @@ func (rm *room) onFoodEaten(r kit.Room, foodPos Point, snakeNum int) {
 		Color:     popupColor,
 		CreatedAt: r.Now(),
 	})
+
+	// Spawn particles and screen FX
+	rm.spawnParticles(r, foodPos.X, foodPos.Y, popupColor, 12, "food")
+	rm.triggerFlash(r, 80*time.Millisecond)
+	rm.triggerShake(r, 80*time.Millisecond)
 
 	rm.food = rm.randomFreePoint(r, 0)
 	rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 4))
@@ -1387,7 +1475,16 @@ func (rm *room) render(r kit.Room) {
 				if occupied[p] || rm.isMazeWall(p) {
 					continue
 				}
-				f.SetRune(3+y, 1+x*2, '·', dotStyle)
+				dStyle := dotStyle
+				if rm.screenFXEnabled && !rm.flashExpiry.IsZero() && now.Before(rm.flashExpiry) {
+					flashCycle := (now.UnixNano() / 150000000) % 2
+					if flashCycle == 0 {
+						dStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0xff)}
+					} else {
+						dStyle = kit.Style{FG: theme.Border}
+					}
+				}
+				f.SetRune(3+y, 1+x*2, '·', dStyle)
 			}
 		}
 	}
@@ -1671,6 +1768,21 @@ func (rm *room) render(r kit.Room) {
 		f.SetWide(3+p.Y, 1+p.X*2, skinGlyph2, segmentStyle)
 	}
 
+	// 6.5 Draw Particles
+	for _, p := range rm.particles {
+		px := int(math.Round(p.X))
+		py := int(math.Round(p.Y))
+		if px >= 0 && px < 39 && py >= 0 && py < 18 {
+			style := kit.Style{FG: p.Color, Attr: kit.AttrBold}
+			age := now.Sub(p.CreatedAt)
+			lifeRatio := age.Seconds() / p.Duration.Seconds()
+			if lifeRatio > 0.6 {
+				style.Attr = kit.AttrDim
+			}
+			f.SetRune(3+py, 1+px*2, p.Glyph, style)
+		}
+	}
+
 	// 7. Draw Floating Score Popups
 	var activePopups []ScorePopup
 	for _, p := range rm.popups {
@@ -1916,7 +2028,7 @@ func (rm *room) render(r kit.Room) {
 			f.Text(9, 21, centerText(pbMsg, 38), pbMsgStyle)
 		}
 
-		r.Send(p, f)
+		rm.applyShakeAndSend(r, p, f, now)
 	}
 }
 
@@ -1924,8 +2036,22 @@ func (rm *room) getBorderStyle(r, c int, now time.Time) kit.Style {
 	palettes := getPalettes()
 	theme := palettes[rm.themeIndex]
 
-	// Check if flashing from recent collision
-	if !rm.lastCollisionAt.IsZero() && now.Sub(rm.lastCollisionAt) < 300*time.Millisecond {
+	// Check if flashing (e.g. from screen flash effect)
+	if rm.screenFXEnabled && !rm.flashExpiry.IsZero() && now.Before(rm.flashExpiry) {
+		flashCycle := (now.UnixNano() / 75000000) % 2 // 75ms toggle
+		if flashCycle == 0 {
+			return kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
+		} else {
+			return kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+		}
+	}
+
+	// Fallback/compatibility check for collision flash
+	if !rm.screenFXEnabled && !rm.lastCollisionAt.IsZero() && now.Sub(rm.lastCollisionAt) < 300*time.Millisecond {
+		return kit.Style{FG: theme.Border}
+	}
+
+	if rm.screenFXEnabled && !rm.lastCollisionAt.IsZero() && now.Sub(rm.lastCollisionAt) < 300*time.Millisecond {
 		flashCycle := (now.Sub(rm.lastCollisionAt).Milliseconds() / 75) % 2
 		if flashCycle == 0 {
 			return kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
@@ -2325,9 +2451,9 @@ func (rm *room) handleSettingsInput(r kit.Room, p kit.Player, in kit.Input) {
 	if in.Kind == kit.InputRune {
 		switch in.Rune {
 		case 'w', 'W':
-			rm.settingsCursor = (rm.settingsCursor - 1 + 6) % 6
+			rm.settingsCursor = (rm.settingsCursor - 1 + 7) % 7
 		case 's', 'S':
-			rm.settingsCursor = (rm.settingsCursor + 1) % 6
+			rm.settingsCursor = (rm.settingsCursor + 1) % 7
 		case 'a', 'A':
 			rm.changeSetting(skins, speeds, -1)
 		case 'd', 'D':
@@ -2336,9 +2462,9 @@ func (rm *room) handleSettingsInput(r kit.Room, p kit.Player, in kit.Input) {
 	} else if in.Kind == kit.InputKey {
 		switch in.Key {
 		case kit.KeyUp:
-			rm.settingsCursor = (rm.settingsCursor - 1 + 6) % 6
+			rm.settingsCursor = (rm.settingsCursor - 1 + 7) % 7
 		case kit.KeyDown:
-			rm.settingsCursor = (rm.settingsCursor + 1) % 6
+			rm.settingsCursor = (rm.settingsCursor + 1) % 7
 		case kit.KeyLeft:
 			rm.changeSetting(skins, speeds, -1)
 		case kit.KeyRight:
@@ -2362,7 +2488,9 @@ func (rm *room) changeSetting(skins []rune, speeds []int, dir int) {
 		}
 	case 4: // Audio
 		rm.audioEnabled = !rm.audioEnabled
-	case 5: // Close / Back
+	case 5: // Screen FX
+		rm.screenFXEnabled = !rm.screenFXEnabled
+	case 6: // Close / Back
 		// Left/Right on Close does nothing
 	}
 }
@@ -2449,13 +2577,20 @@ func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
 	}
 	renderOption(4, "Audio Sound", audioVal, rm.settingsCursor == 4)
 
-	// Option 5: Close & Apply
-	r := 8 + 5
+	// Option 5: Screen FX
+	screenFXVal := "ON"
+	if !rm.screenFXEnabled {
+		screenFXVal = "OFF"
+	}
+	renderOption(5, "Screen FX", screenFXVal, rm.settingsCursor == 5)
+
+	// Option 6: Close & Apply
+	r := 8 + 6
 	for c := 20; c <= 59; c++ {
 		f.SetRune(r, c, ' ', textStyle)
 	}
 	closeText := "Close & Apply"
-	if rm.settingsCursor == 5 {
+	if rm.settingsCursor == 6 {
 		closeText = "▶ Close & Apply ◀"
 		f.Text(r, 40-len(closeText)/2, closeText, selectedStyle)
 	} else {
@@ -2465,4 +2600,87 @@ func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
 	// Instructions
 	instText := "Press [SPACE] to Close"
 	f.Text(15, 40-len(instText)/2, instText, dimStyle)
+}
+
+func (rm *room) spawnParticles(r kit.Room, x, y int, color kit.Color, count int, pType string) {
+	now := r.Now()
+	var glyphs []rune
+	if pType == "food" {
+		glyphs = []rune{'·', '+', '*', 'o'}
+	} else if pType == "crash" {
+		glyphs = []rune{'░', '▒', '*', '·', 'x', 'o', '+', '✦'}
+	} else if pType == "bomb" {
+		glyphs = []rune{'✹', '░', '▒', '*', '+', 'x'}
+	} else {
+		glyphs = []rune{'*'}
+	}
+
+	for i := 0; i < count; i++ {
+		angle := 2.0 * math.Pi * float64(i) / float64(count)
+		speed := 5.0 + r.Rand().Float64()*10.0
+		vx := math.Cos(angle) * speed
+		vy := math.Sin(angle) * speed * 0.5
+
+		glyph := glyphs[r.Rand().Intn(len(glyphs))]
+		duration := time.Duration(300+r.Rand().Intn(400)) * time.Millisecond
+
+		rm.particles = append(rm.particles, Particle{
+			X:         float64(x),
+			Y:         float64(y),
+			VX:        vx,
+			VY:        vy,
+			Glyph:     glyph,
+			Color:     color,
+			CreatedAt: now,
+			Duration:  duration,
+		})
+	}
+}
+
+func (rm *room) triggerShake(r kit.Room, duration time.Duration) {
+	if rm.screenFXEnabled {
+		rm.shakeStartedAt = r.Now()
+		rm.shakeExpiry = r.Now().Add(duration)
+	}
+}
+
+func (rm *room) triggerFlash(r kit.Room, duration time.Duration) {
+	if rm.screenFXEnabled {
+		rm.flashExpiry = r.Now().Add(duration)
+	}
+}
+
+func (rm *room) applyShakeAndSend(r kit.Room, p kit.Player, f *kit.Frame, now time.Time) {
+	if rm.screenFXEnabled && !rm.shakeExpiry.IsZero() && now.Before(rm.shakeExpiry) {
+		elapsed := now.Sub(rm.shakeStartedAt)
+		phase := elapsed.Milliseconds() / 40
+
+		offsetsX := []int{1, -1, 0, 1, -1, 0, 1, -1}
+		offsetsY := []int{0, 1, -1, 1, 0, -1, 1, -1}
+
+		idx := int(phase) % len(offsetsX)
+		dx := offsetsX[idx]
+		dy := offsetsY[idx]
+
+		var shiftedCells [kit.Rows][kit.Cols]kit.Cell
+		blank := kit.Cell{Rune: ' '}
+		for row := 0; row < kit.Rows; row++ {
+			for col := 0; col < kit.Cols; col++ {
+				sr := row - dy
+				sc := col - dx
+				if sr >= 0 && sr < kit.Rows && sc >= 0 && sc < kit.Cols {
+					shiftedCells[row][col] = f.Cells[sr][sc]
+				} else {
+					shiftedCells[row][col] = blank
+				}
+			}
+		}
+
+		originalCells := f.Cells
+		f.Cells = shiftedCells
+		r.Send(p, f)
+		f.Cells = originalCells
+	} else {
+		r.Send(p, f)
+	}
 }
