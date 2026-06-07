@@ -4,6 +4,22 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 11: Customizable Settings Menu Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Verification of Settings menu opening: Paused the game using Space (` `) and pressed `s` to display the Settings menu centered modal.
+  - Verification of Snake skin customization: Selected "Snake 1 Skin" and changed the skin character from `█` to `◆`.
+  - Verification of Grid Dots toggle: Navigated down to "Grid Dots" and switched it to `OFF`.
+  - Verification of Speed customization: Navigated down to "Start Speed" and decreased it to `120ms`.
+  - Verification of Close/Apply logic: Pressed Space (` `) to close settings and returned to the game.
+  - Verification of persistence and application: Resumed game tick to confirm Snake 1 is rendered using diamond `◆` body segments, grid dots are hidden, and the base tick rate scales from 120ms.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - The settings modal is beautiful, centered, and very responsive to navigate using both arrows and WASD keys.
+  - Custom snake characters/skins feel extremely premium and make Snake 1 and Snake 2 highly distinguishable and personal.
+  - Toggling background grid dots on/off provides a completely different visual vibe, offering a cleaner screen layout if the player prefers it.
+  - Customizing the starting tick rate dynamically scales the difficulty perfectly, allowing both casual players (e.g. 200ms) and hardcore players (e.g. 100ms) to enjoy the gameplay from the start.
+
 ## [2026-06-07] Task 9: AI Bot Option for Snake 2 in Single-Player/Co-op Mode Test
 - **Status**: Passed successfully.
 - **Coverage**:

@@ -118,3 +118,43 @@ steps:
   - rune: ' '
   - advance: 150ms
   - shot: pb_restarted_shows_pb_10
+
+  # --- Test Settings Menu ---
+  # Pause the game
+  - seat: 0
+  - rune: ' '
+  - advance: 150ms
+  - shot: paused_for_settings
+  # Open settings menu
+  - rune: 's'
+  - advance: 150ms
+  - shot: settings_menu_opened
+  # Change Snake 1 Skin
+  - key: right
+  - advance: 150ms
+  - shot: settings_snake1_skin_changed
+  # Move down to Snake 2 Skin, then Grid Dots
+  - rune: 's'
+  - rune: 's'
+  - advance: 150ms
+  - shot: settings_navigated_to_dots
+  # Toggle Grid Dots off
+  - key: right
+  - advance: 150ms
+  - shot: settings_dots_toggled
+  # Move down to Start Speed
+  - rune: 's'
+  - advance: 150ms
+  - shot: settings_navigated_to_speed
+  # Change Start Speed
+  - key: left
+  - advance: 150ms
+  - shot: settings_speed_changed
+  # Close settings menu
+  - rune: ' '
+  - advance: 150ms
+  - shot: settings_closed
+  # Resume gameplay
+  - rune: ' '
+  - advance: 300ms
+  - shot: settings_applied_and_resumed

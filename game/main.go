@@ -231,6 +231,13 @@ type room struct {
 
 	portalA Point
 	portalB Point
+
+	settingsOpen    bool
+	settingsCursor  int
+	snake1SkinIdx   int
+	snake2SkinIdx   int
+	gridDotsEnabled bool
+	startSpeedIdx   int
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -319,7 +326,16 @@ func (rm *room) OnStart(r kit.Room) {
 	r.SetInputContext(kit.CtxNav)
 	rm.lastTick = r.Now()
 	rm.startedAt = r.Now()
-	rm.tickRate = 150 * time.Millisecond
+
+	rm.settingsOpen = false
+	rm.settingsCursor = 0
+	rm.snake1SkinIdx = 0
+	rm.snake2SkinIdx = 0
+	rm.gridDotsEnabled = true
+	rm.startSpeedIdx = 2 // 150ms
+
+	speeds := []int{100, 120, 150, 180, 200}
+	rm.tickRate = time.Duration(speeds[rm.startSpeedIdx]) * time.Millisecond
 	rm.snake1 = []Point{
 		{X: 10, Y: 9},
 		{X: 9, Y: 9},
@@ -386,6 +402,12 @@ func (rm *room) OnJoin(r kit.Room, p kit.Player) {
 func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 	rm.activePlayer = p
 	rm.activePlayerSet = true
+
+	if rm.settingsOpen {
+		rm.handleSettingsInput(r, p, in)
+		rm.render(r)
+		return
+	}
 
 	// Identify player index
 	members := r.Members()
@@ -485,6 +507,14 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 		rm.p2IsBot = !rm.p2IsBot
 	}
 
+	// Settings trigger support
+	if in.Kind == kit.InputRune && (in.Rune == 's' || in.Rune == 'S') {
+		if !rm.gameStarted || rm.gameOver {
+			rm.settingsOpen = true
+			rm.settingsCursor = 0
+		}
+	}
+
 	rm.render(r)
 }
 
@@ -504,8 +534,9 @@ func (rm *room) OnWake(r kit.Room) {
 	elapsedSinceLastWake := now.Sub(rm.lastWake)
 	rm.lastWake = now
 
-	// If paused or game over, shift power-up timers forward by the elapsed real time
-	if (!rm.gameStarted || rm.gameOver) && elapsedSinceLastWake > 0 {
+	// If paused or game over or settings menu is open, shift power-up timers forward by the elapsed real time
+	isPausedOrGameOver := !rm.gameStarted || rm.gameOver || rm.settingsOpen
+	if isPausedOrGameOver && elapsedSinceLastWake > 0 {
 		if !rm.p1PowerUpExpiry.IsZero() {
 			rm.p1PowerUpExpiry = rm.p1PowerUpExpiry.Add(elapsedSinceLastWake)
 		}
@@ -518,7 +549,7 @@ func (rm *room) OnWake(r kit.Room) {
 	}
 
 	// Advance game state based on tickRate
-	if rm.gameStarted && !rm.gameOver && now.Sub(rm.lastTick) >= rm.tickRate {
+	if rm.gameStarted && !rm.gameOver && !rm.settingsOpen && now.Sub(rm.lastTick) >= rm.tickRate {
 		rm.lastTick = now
 		rm.tick(r)
 	}
@@ -636,9 +667,16 @@ func (rm *room) reset(r kit.Room) {
 	rm.score2 = 0
 	rm.gameOver = false
 	rm.gameStarted = true
+	rm.settingsOpen = false
 	rm.lastTick = r.Now()
 	rm.startedAt = r.Now()
-	rm.tickRate = 150 * time.Millisecond
+
+	speeds := []int{100, 120, 150, 180, 200}
+	startSpeed := 150
+	if rm.startSpeedIdx >= 0 && rm.startSpeedIdx < len(speeds) {
+		startSpeed = speeds[rm.startSpeedIdx]
+	}
+	rm.tickRate = time.Duration(startSpeed) * time.Millisecond
 	rm.popups = []ScorePopup{}
 	rm.lastCollisionAt = time.Time{}
 
@@ -1077,8 +1115,13 @@ func (rm *room) tick(r kit.Room) {
 }
 
 func (rm *room) onFoodEaten(r kit.Room, foodPos Point, snakeNum int) {
+	speeds := []int{100, 120, 150, 180, 200}
+	startSpeed := 150
+	if rm.startSpeedIdx >= 0 && rm.startSpeedIdx < len(speeds) {
+		startSpeed = speeds[rm.startSpeedIdx]
+	}
 	totalScore := rm.score1 + rm.score2
-	speedMs := 150 - (totalScore/10)*5
+	speedMs := startSpeed - (totalScore/10)*5
 	if speedMs < 60 {
 		speedMs = 60
 	}
@@ -1219,13 +1262,15 @@ func (rm *room) render(r kit.Room) {
 	p2FreezeActive := !rm.p2PowerUpExpiry.IsZero() && now.Before(rm.p2PowerUpExpiry) && rm.p2PowerUpType == "FREEZE"
 
 	// 3. Draw Grid Dots
-	for y := 0; y < 18; y++ {
-		for x := 0; x < 39; x++ {
-			p := Point{X: x, Y: y}
-			if occupied[p] || rm.isMazeWall(p) {
-				continue
+	if rm.gridDotsEnabled {
+		for y := 0; y < 18; y++ {
+			for x := 0; x < 39; x++ {
+				p := Point{X: x, Y: y}
+				if occupied[p] || rm.isMazeWall(p) {
+					continue
+				}
+				f.SetRune(3+y, 1+x*2, '·', dotStyle)
 			}
-			f.SetRune(3+y, 1+x*2, '·', dotStyle)
 		}
 	}
 
@@ -1401,6 +1446,7 @@ func (rm *room) render(r kit.Room) {
 	}
 
 	// 6. Draw Snake 1 (gradient from SnakeHead to SnakeTail, flowing dynamically)
+	skins := []rune{'█', '◆', '●', '■', '★'}
 	n1 := len(rm.snake1)
 	timeShift := float64(now.Sub(rm.startedAt).Milliseconds()%2000) / 2000.0
 	for i := n1 - 1; i >= 0; i-- {
@@ -1424,7 +1470,11 @@ func (rm *room) render(r kit.Room) {
 				segmentStyle = kit.Style{FG: interpolateColor(theme.SnakeHead, theme.SnakeTail, shiftedRatio)}
 			}
 		}
-		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
+		skinGlyph1 := '█'
+		if rm.snake1SkinIdx >= 0 && rm.snake1SkinIdx < len(skins) {
+			skinGlyph1 = skins[rm.snake1SkinIdx]
+		}
+		f.SetWide(3+p.Y, 1+p.X*2, skinGlyph1, segmentStyle)
 	}
 
 	// Draw Snake 2 (gradient from Snake2Head to Snake2Tail, flowing dynamically)
@@ -1450,7 +1500,11 @@ func (rm *room) render(r kit.Room) {
 				segmentStyle = kit.Style{FG: interpolateColor(theme.Snake2Head, theme.Snake2Tail, shiftedRatio)}
 			}
 		}
-		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
+		skinGlyph2 := '█'
+		if rm.snake2SkinIdx >= 0 && rm.snake2SkinIdx < len(skins) {
+			skinGlyph2 = skins[rm.snake2SkinIdx]
+		}
+		f.SetWide(3+p.Y, 1+p.X*2, skinGlyph2, segmentStyle)
 	}
 
 	// 7. Draw Floating Score Popups
@@ -1508,44 +1562,69 @@ func (rm *room) render(r kit.Room) {
 	rm.drawDividerWithText(f, 21, dividerText, now)
 
 	// 8. Draw Footer Content
-	f.Text(22, 2, "CONTROLS:", footerStyle)
-	col := 12
-	col = f.Text(22, col, " [", footerStyle)
-	if len(members) >= 2 {
-		col = f.Text(22, col, "P1:WASD P2:Arrows", keyStyle)
-	} else {
-		if rm.p2IsBot {
-			col = f.Text(22, col, "WASD/Bot", keyStyle)
-		} else {
-			col = f.Text(22, col, "WASD/Arrows", keyStyle)
-		}
-	}
-	col = f.Text(22, col, "] Move", footerStyle)
+	if rm.settingsOpen {
+		f.Text(22, 2, "CONTROLS:", footerStyle)
+		col := 12
+		col = f.Text(22, col, " [", footerStyle)
+		col = f.Text(22, col, "▲▼/WASD", keyStyle)
+		col = f.Text(22, col, "] Navigate", footerStyle)
 
-	col = f.Text(22, col+1, " [", footerStyle)
-	col = f.Text(22, col, "T", keyStyle)
-	col = f.Text(22, col, "]Theme", footerStyle)
-
-	col = f.Text(22, col+1, " [", footerStyle)
-	col = f.Text(22, col, "M", keyStyle)
-	col = f.Text(22, col, "]Mode", footerStyle)
-
-	if len(members) < 2 {
 		col = f.Text(22, col+1, " [", footerStyle)
-		col = f.Text(22, col, "B", keyStyle)
-		col = f.Text(22, col, "]Bot", footerStyle)
+		col = f.Text(22, col, "◀▶/AD", keyStyle)
+		col = f.Text(22, col, "] Change", footerStyle)
+
+		col = f.Text(22, col+1, " [", footerStyle)
+		col = f.Text(22, col, "Spc", keyStyle)
+		col = f.Text(22, col, "] Close", footerStyle)
+
+		for c := col; c < 79; c++ {
+			f.SetRune(22, c, ' ', footerStyle)
+		}
+	} else {
+		f.Text(22, 2, "CONTROLS:", footerStyle)
+		col := 12
+		col = f.Text(22, col, " [", footerStyle)
+		if len(members) >= 2 {
+			col = f.Text(22, col, "P1:WASD P2:Arrows", keyStyle)
+		} else {
+			if rm.p2IsBot {
+				col = f.Text(22, col, "WASD/Bot", keyStyle)
+			} else {
+				col = f.Text(22, col, "WASD/Arrows", keyStyle)
+			}
+		}
+		col = f.Text(22, col, "] Move", footerStyle)
+
+		col = f.Text(22, col+1, " [", footerStyle)
+		col = f.Text(22, col, "T", keyStyle)
+		col = f.Text(22, col, "]Theme", footerStyle)
+
+		col = f.Text(22, col+1, " [", footerStyle)
+		col = f.Text(22, col, "M", keyStyle)
+		col = f.Text(22, col, "]Mode", footerStyle)
+
+		if len(members) < 2 {
+			col = f.Text(22, col+1, " [", footerStyle)
+			col = f.Text(22, col, "B", keyStyle)
+			col = f.Text(22, col, "]Bot", footerStyle)
+		}
+
+		col = f.Text(22, col+1, " [", footerStyle)
+		if !rm.gameStarted || rm.gameOver {
+			col = f.Text(22, col, "S", keyStyle)
+			col = f.Text(22, col, "]Settings", footerStyle)
+		} else {
+			col = f.Text(22, col, "Spc", keyStyle)
+			col = f.Text(22, col, "]Pause", footerStyle)
+		}
+
+		col = f.Text(22, col+1, " [", footerStyle)
+		col = f.Text(22, col, "Esc", keyStyle)
+		col = f.Text(22, col, "]Quit", footerStyle)
 	}
-
-	col = f.Text(22, col+1, " [", footerStyle)
-	col = f.Text(22, col, "Spc", keyStyle)
-	col = f.Text(22, col, "]Pause", footerStyle)
-
-	col = f.Text(22, col+1, " [", footerStyle)
-	col = f.Text(22, col, "Esc", keyStyle)
-	col = f.Text(22, col, "]Quit", footerStyle)
 
 	// 9. Draw Game Over Overlay
-	if rm.gameOver {
+	if rm.gameOver && !rm.settingsOpen {
 		modalStyle := kit.Style{FG: theme.ModalBorder, Attr: kit.AttrBold}
 		textStyle := kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
 		subTextStyle := kit.Style{FG: theme.Border}
@@ -1590,6 +1669,11 @@ func (rm *room) render(r kit.Room) {
 		f.Text(12, 21, centerText(scoreText, 38), textStyle)
 
 		f.Text(13, 25, "Press [SPACE] to Restart", subTextStyle)
+	}
+
+	// 9.5 Draw Settings Overlay
+	if rm.settingsOpen {
+		rm.drawSettingsModal(f, now)
 	}
 
 	// Send viewport to each member
@@ -2013,4 +2097,150 @@ func (rm *room) countReachableSpace(start Point, p1FreezeActive, p2FreezeActive 
 		}
 	}
 	return count
+}
+
+func (rm *room) handleSettingsInput(r kit.Room, p kit.Player, in kit.Input) {
+	action := kit.Resolve(in, kit.CtxNav)
+	if action == kit.ActConfirm {
+		rm.settingsOpen = false
+		return
+	}
+
+	speeds := []int{100, 120, 150, 180, 200}
+	skins := []rune{'█', '◆', '●', '■', '★'}
+
+	if in.Kind == kit.InputRune {
+		switch in.Rune {
+		case 'w', 'W':
+			rm.settingsCursor = (rm.settingsCursor - 1 + 5) % 5
+		case 's', 'S':
+			rm.settingsCursor = (rm.settingsCursor + 1) % 5
+		case 'a', 'A':
+			rm.changeSetting(skins, speeds, -1)
+		case 'd', 'D':
+			rm.changeSetting(skins, speeds, 1)
+		}
+	} else if in.Kind == kit.InputKey {
+		switch in.Key {
+		case kit.KeyUp:
+			rm.settingsCursor = (rm.settingsCursor - 1 + 5) % 5
+		case kit.KeyDown:
+			rm.settingsCursor = (rm.settingsCursor + 1) % 5
+		case kit.KeyLeft:
+			rm.changeSetting(skins, speeds, -1)
+		case kit.KeyRight:
+			rm.changeSetting(skins, speeds, 1)
+		}
+	}
+}
+
+func (rm *room) changeSetting(skins []rune, speeds []int, dir int) {
+	switch rm.settingsCursor {
+	case 0: // Snake 1 Skin
+		rm.snake1SkinIdx = (rm.snake1SkinIdx + dir + len(skins)) % len(skins)
+	case 1: // Snake 2 Skin
+		rm.snake2SkinIdx = (rm.snake2SkinIdx + dir + len(skins)) % len(skins)
+	case 2: // Grid Dots
+		rm.gridDotsEnabled = !rm.gridDotsEnabled
+	case 3: // Start Speed
+		rm.startSpeedIdx = (rm.startSpeedIdx + dir + len(speeds)) % len(speeds)
+		if rm.score1 == 0 && rm.score2 == 0 {
+			rm.tickRate = time.Duration(speeds[rm.startSpeedIdx]) * time.Millisecond
+		}
+	case 4: // Close / Back
+		// Left/Right on Close does nothing
+	}
+}
+
+func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
+	palettes := getPalettes()
+	theme := palettes[rm.themeIndex]
+	modalStyle := kit.Style{FG: theme.ModalBorder, Attr: kit.AttrBold}
+	textStyle := kit.Style{FG: kit.RGB(0xff, 0xff, 0xff)}
+	labelStyle := kit.Style{FG: theme.Header, Attr: kit.AttrBold}
+	selectedStyle := kit.Style{FG: theme.Key, Attr: kit.AttrBold}
+	dimStyle := kit.Style{FG: kit.RGB(0x77, 0x77, 0x77)}
+
+	// Draw box
+	f.Text(5, 18, "╔══════════════════════════════════════════╗", modalStyle)
+	for r := 6; r <= 15; r++ {
+		f.Text(r, 18, "║                                          ║", modalStyle)
+	}
+	f.Text(16, 18, "╚══════════════════════════════════════════╝", modalStyle)
+
+	// Title
+	f.Text(6, 32, "── SETTINGS ──", labelStyle)
+
+	skins := []rune{'█', '◆', '●', '■', '★'}
+	speeds := []int{100, 120, 150, 180, 200}
+
+	renderOption := func(row int, label string, value string, isSelected bool) {
+		r := 8 + row
+		for c := 20; c <= 59; c++ {
+			f.SetRune(r, c, ' ', textStyle)
+		}
+		
+		var prefix string
+		if isSelected {
+			prefix = "▶ "
+		} else {
+			prefix = "  "
+		}
+		
+		var lStyle kit.Style
+		if isSelected {
+			lStyle = selectedStyle
+		} else {
+			lStyle = textStyle
+		}
+		
+		f.Text(r, 20, prefix+label, lStyle)
+		
+		valStr := fmt.Sprintf("[ %s ]", value)
+		valCol := 60 - len(valStr)
+		
+		var vStyle kit.Style
+		if isSelected {
+			vStyle = selectedStyle
+		} else {
+			vStyle = dimStyle
+		}
+		f.Text(r, valCol, valStr, vStyle)
+	}
+
+	// Option 0: Snake 1 Skin
+	skin1Val := string(skins[rm.snake1SkinIdx])
+	renderOption(0, "Snake 1 Skin", skin1Val, rm.settingsCursor == 0)
+
+	// Option 1: Snake 2 Skin
+	skin2Val := string(skins[rm.snake2SkinIdx])
+	renderOption(1, "Snake 2 Skin", skin2Val, rm.settingsCursor == 1)
+
+	// Option 2: Grid Dots
+	dotsVal := "ON"
+	if !rm.gridDotsEnabled {
+		dotsVal = "OFF"
+	}
+	renderOption(2, "Grid Dots", dotsVal, rm.settingsCursor == 2)
+
+	// Option 3: Start Speed
+	speedVal := fmt.Sprintf("%dms", speeds[rm.startSpeedIdx])
+	renderOption(3, "Start Speed", speedVal, rm.settingsCursor == 3)
+
+	// Option 4: Close & Apply
+	r := 8 + 4
+	for c := 20; c <= 59; c++ {
+		f.SetRune(r, c, ' ', textStyle)
+	}
+	closeText := "Close & Apply"
+	if rm.settingsCursor == 4 {
+		closeText = "▶ Close & Apply ◀"
+		f.Text(r, 40-len(closeText)/2, closeText, selectedStyle)
+	} else {
+		f.Text(r, 40-len(closeText)/2, closeText, textStyle)
+	}
+	
+	// Instructions
+	instText := "Press [SPACE] to Close"
+	f.Text(14, 40-len(instText)/2, instText, dimStyle)
 }

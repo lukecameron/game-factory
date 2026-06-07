@@ -4,6 +4,20 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 11: Customizable Settings Menu
+- **Status**: Completed.
+- **Details**:
+  - Implemented a customizable settings menu accessible via the `S` or `s` key when the game is paused or on the game over screen.
+  - Intercepted all keyboard inputs in `OnInput` while the settings menu is open to handle menu navigation (`W`/`S` or `Up`/`Down` arrows) and option switching (`A`/`D` or `Left`/`Right` arrows).
+  - Implemented 4 settings:
+    - **Snake 1 Skin & Snake 2 Skin**: Choose between 5 custom double-width characters (`█`, `◆`, `●`, `■`, `★`) to represent the snakes' bodies on the playfield.
+    - **Grid Dots**: Toggle drawing the background grid dots (`·`) on/off dynamically.
+    - **Start Speed**: Select the starting difficulty/tick rate from 5 options (`100ms`, `120ms`, `150ms`, `180ms`, `200ms`) and update the game's clock rate dynamically on reset or immediately if the score is zero.
+    - **Close & Apply**: Confirms selection and returns to the game screen.
+  - Paused the game ticking and shifted active power-up expiration deadlines in `OnWake` when the settings menu is open to prevent power-up draining.
+  - Revamped the TUI footer dynamically: when settings is open, displays settings navigation/change controls; when paused/over, replaces `[Spc]Pause` with `[S]Settings`.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 9: AI Bot Option for Snake 2 in Single-Player/Co-op Mode
 - **Status**: Completed.
 - **Details**:

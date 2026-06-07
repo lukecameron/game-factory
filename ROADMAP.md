@@ -19,5 +19,5 @@ This file defines the tasks to be completed by the game factory. Each iteration,
 - [x] **Task 10**: Implement Portal Mode. Add a 4th game mode "PORTALS" featuring symmetric neon blue & orange portal rings. Teleport snakes through portals dynamically, ensuring body segments flow smoothly and the AI Bot navigates portal pathways using portal-aware BFS search.
 
 ## Future Ideas
-- [ ] **Task 11**: Add a customizable settings menu (e.g. custom snake skins/characters, toggle grid dots, or custom start tick rates) accessible via the `S` or `s` key.
+- [x] **Task 11**: Add a customizable settings menu (e.g. custom snake skins/characters, toggle grid dots, or custom start tick rates) accessible via the `S` or `s` key.
 - [ ] **Task 12**: Implement retro terminal beep/audio cues using standard ASCII bell `\a` or distinct patterns for events like eating food, collecting power-ups, or crashing.
