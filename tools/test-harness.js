@@ -87,6 +87,21 @@ function buildWasm() {
   return success;
 }
 
+function verifyWasm() {
+  console.log('\n[Harness] Phase 1.5: Verifying WASM Conformance...');
+  const success = runCommand('shellcade-kit', [
+    'check',
+    'game.wasm'
+  ], { cwd: path.resolve('game') });
+  
+  if (success) {
+    console.log('[Harness] WASM conformance check successful.');
+  } else {
+    console.error('[Harness] WASM conformance check failed.');
+  }
+  return success;
+}
+
 function runSmokeTests(scriptPath, outDir) {
   console.log('\n[Harness] Phase 2: Running Smoke Tests...');
   const absScriptPath = path.resolve(scriptPath);
@@ -710,6 +725,13 @@ function main() {
   const buildSuccess = buildWasm();
   if (!buildSuccess) {
     console.error('[Harness] Build phase failed. Aborting tests.');
+    process.exit(1);
+  }
+
+  // 1.5. Verify WASM Conformance
+  const verifySuccess = verifyWasm();
+  if (!verifySuccess) {
+    console.error('[Harness] WASM conformance check failed. Aborting tests.');
     process.exit(1);
   }
 
