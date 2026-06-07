@@ -14,3 +14,4 @@ This file defines the tasks to be completed by the game factory. Each iteration,
 ## Future Ideas
 - [x] **Task 6**: Add moving/patrolling hazards or complex maps (e.g. mazes) to the playfield.
 - [x] **Task 7**: Implement dual-snake multiplayer where two players steer their own snakes concurrently using different key bindings.
+- [x] **Task 8**: Implement Power-ups (Shield & Freeze) to dynamically alter gameplay mechanics and track them correctly during pause/game-over states.

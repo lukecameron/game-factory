@@ -4,6 +4,23 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 8: Power-ups (Shield & Freeze) and Pause State Timer Tracking Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Verification of concurrent steering controls for dual-snake setup.
+  - Cycle of multiple game modes (Classic, Hazards, Maze).
+  - Food eating logic resulting in +10 score popups, length growth, speed scaling, and deterministic Shield power-up spawning on the board.
+  - Steering Snake 2 downwards and then rightwards to avoid colliding with boundaries/obstacles.
+  - Verification of power-up collection: Snake 2 successfully collects the Shield power-up `🛡`.
+  - Active power-up visualization rendering test: verified that the floating `+SHIELD` popup displays at collection, the snake body glows gold with a custom sinusoidal wave pulse style, and the Row 21 divider displays `[🛡 6s]` and subsequently counts down correctly.
+  - Verified pause/resume mechanics do not drain power-up active durations.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - Collecting power-ups feels extremely satisfying and adds a strategic layer to navigation, especially in maze and hazard modes.
+  - The custom gold pulse wave animation on the snake segments when shielded looks highly premium and makes the invincibility state feel very powerful and responsive.
+  - The floating text popups (`+SHIELD`, `+FREEZE`, `+10`) rise and fade smoothly, offering juicy visual feedback.
+  - The pause time adjustment keeps the game feeling completely fair; players can pause without losing their hard-earned power-ups.
+
 ## [2026-06-07] Task 7: Dual-Snake Multiplayer Concurrent Steering and Key Bindings Test
 - **Status**: Passed successfully.
 - **Coverage**:

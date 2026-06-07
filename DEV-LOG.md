@@ -4,6 +4,16 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 8: Power-ups (Shield & Freeze) and Pause State Timer Tracking
+- **Status**: Completed.
+- **Details**:
+  - Implemented Shield and Freeze power-up behavior. Collectibles spawn deterministically on food eaten and expire after 8 seconds if not collected.
+  - Picking up a Shield gives the player temporary protection against obstacles, maze walls, hazards, self-collision, and collision with the other snake.
+  - Picking up a Freeze slows down the opponent snake (moves on alternate ticks) and completely freezes all patrolling hazards.
+  - Implemented pause-aware and game-over-aware timer tracking: in [main.go](file:///home/luke/dev/game-factory/game/main.go), the elapsed real time is added back to power-up spawned times and expiration deadlines when the game is paused or over, ensuring power-ups do not drain while the game is paused.
+  - Added power-up status rendering inside the Row 21 divider line showing type and remaining seconds (e.g. `[🛡 6s]` or `[❄ 4s]`), along with custom snake body gradients (pulsing gold for Shield, cyan-tinted dim for Freeze).
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 7: Dual-Snake Multiplayer Concurrent Steering and Key Bindings
 - **Status**: Completed.
 - **Details**:

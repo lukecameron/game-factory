@@ -49,14 +49,32 @@ steps:
   - shot: mode_classic_returned
 
   # --- Test Power-ups ---
-  # Steer Snake 2 up to avoid head-on collision
+  # Steer Snake 2 down to avoid head-on collision
   - seat: 1
-  - key: up
+  - key: down
+  - advance: 600ms
+  - seat: 1
+  - key: right
   # Move Snake 1 right towards food X-coord (23)
-  - advance: 1950ms
+  - advance: 1350ms
   - shot: snake1_aligned_with_food
-  # Steer Snake 1 down towards food Y-coord (15)
+  # Steer Snake 1 up towards food Y-coord (8)
   - seat: 0
-  - rune: 's'
+  - rune: 'w'
   - advance: 900ms
   - shot: food_eaten_powerup_spawned
+
+  # --- Test Collecting Shield Power-up ---
+  # Steer Snake 2 up to align with shield Y-coord (13)
+  - seat: 1
+  - key: up
+  - advance: 150ms
+  - shot: snake2_aligned_with_shield
+  # Steer Snake 2 left to eat the shield at X: 2, Y: 13
+  - seat: 1
+  - key: left
+  - advance: 150ms
+  - shot: shield_collected
+  # Advance one more tick to see active status
+  - advance: 150ms
+  - shot: shield_active_status

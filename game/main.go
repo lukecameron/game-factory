@@ -216,6 +216,7 @@ type room struct {
 	p2PowerUpExpiry time.Time
 
 	tickCount int
+	lastWake  time.Time
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -341,6 +342,7 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.p2PowerUpType = ""
 	rm.p2PowerUpExpiry = time.Time{}
 	rm.tickCount = 0
+	rm.lastWake = r.Now()
 
 	// Initialize hazards
 	rm.initHazards()
@@ -464,6 +466,25 @@ func (rm *room) OnWake(r kit.Room) {
 	if rm.startedAt.IsZero() {
 		rm.startedAt = now
 	}
+	if rm.lastWake.IsZero() {
+		rm.lastWake = now
+	}
+
+	elapsedSinceLastWake := now.Sub(rm.lastWake)
+	rm.lastWake = now
+
+	// If paused or game over, shift power-up timers forward by the elapsed real time
+	if (!rm.gameStarted || rm.gameOver) && elapsedSinceLastWake > 0 {
+		if !rm.p1PowerUpExpiry.IsZero() {
+			rm.p1PowerUpExpiry = rm.p1PowerUpExpiry.Add(elapsedSinceLastWake)
+		}
+		if !rm.p2PowerUpExpiry.IsZero() {
+			rm.p2PowerUpExpiry = rm.p2PowerUpExpiry.Add(elapsedSinceLastWake)
+		}
+		if rm.powerUpActive && !rm.powerUpSpawnedAt.IsZero() {
+			rm.powerUpSpawnedAt = rm.powerUpSpawnedAt.Add(elapsedSinceLastWake)
+		}
+	}
 
 	// Advance game state based on tickRate
 	if rm.gameStarted && !rm.gameOver && now.Sub(rm.lastTick) >= rm.tickRate {
@@ -512,6 +533,7 @@ func (rm *room) reset(r kit.Room) {
 	rm.p2PowerUpType = ""
 	rm.p2PowerUpExpiry = time.Time{}
 	rm.tickCount = 0
+	rm.lastWake = r.Now()
 
 	// Initialize hazards
 	rm.initHazards()
