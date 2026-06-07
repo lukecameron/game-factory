@@ -4,6 +4,24 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 4: Premium Aesthetics, Custom Palettes, & Micro-animations
+- **Status**: Completed.
+- **Details**:
+  - Implemented 5 vibrant, handcrafted truecolor themes:
+    - **Cyberpunk Neon**: Neon Violet, Aqua, Lime Green, Pink, Orange.
+    - **Neon Ocean**: Deep Blue, Teal, Coral, Gold, Sky Blue.
+    - **Sunset Glow**: Crimson, Gold, Orange, Deep Red, Orchid.
+    - **Matrix Grid**: Dark Green, Neon Green, Forest Green, Lime, Yellow-Green.
+    - **Vaporwave**: Pastel Purple, Yellow, Violet, Hot Pink, Cyan, Magenta.
+  - Added theme switching support: Player can cycle through themes dynamically by pressing the `T` or `t` key during the game.
+  - Implemented micro-animations:
+    - **Border Laser Pulse**: A dynamic bright laser segment flows around the double-line borders.
+    - **Twinkling Sparkle Food**: Food item twinkles by cycling through different star/sparkle glyphs (`★`, `☆`, `✦`, `✧`) and pulsing its truecolor intensity.
+    - **Proximity Warning Flash**: Obstacles near the snake's head (distance <= 2 cells) flash rapidly between the theme color and white/red warning colors.
+    - **Floating Score Popups**: Eaten food triggers a floating `+10` text effect that rises and dims over 1 second.
+    - **Collision Flash Screen Effect**: Playfield border flashes white/pink for 300ms on impact.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 3: Collision Detection, Spawning, Scoring, and Game Over Restart Mechanics
 - **Status**: Completed.
 - **Details**:

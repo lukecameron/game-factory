@@ -4,6 +4,12 @@ heartbeat: 50ms
 steps:
   - wake: null
   - shot: start
+  # Switch theme to Neon Ocean (press 't')
+  - rune: 't'
+  - shot: theme_neon_ocean
+  # Switch theme to Sunset Glow (press 't')
+  - rune: 't'
+  - shot: theme_sunset_glow
   # Move right 4 ticks to X=23, Y=9
   - advance: 600ms
   - shot: moved_right

@@ -4,6 +4,29 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 4: Premium Aesthetics, Themes, and Animations Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Initial load rendering.
+  - Theme switching verification:
+    - Pressing 't' cycles the theme from **Cyberpunk Neon** to **Neon Ocean**.
+    - Pressing 't' again cycles the theme to **Sunset Glow**.
+    - Captured separate shots (`theme_neon_ocean` and `theme_sunset_glow`) to verify color transitions, layouts, and header elements.
+  - Food Eating & Score Popup verification:
+    - Moving to food cell and eating it creates the "+10" popup at the exact food coordinate, rises vertically, and disappears correctly.
+  - Proximity Warning & Danger Obstacles verification:
+    - Approaching an obstacle within 2 cells activates the warning flashing animation to alert the player.
+  - Game Over Collision & Impact Flash verification:
+    - Crashing into the obstacle triggers a full screen-border impact flash for 300ms, halts gameplay ticks, and brings up the themed GAME OVER menu.
+  - Restart confirmation restores status to PLAYING.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - The flowing border lights and glowing gradient snake segment colors make the playfield feel exceptionally alive and arcade-like.
+  - The twinkling/sparkling food shape cycles add a delightful layer of visual polish.
+  - The warning flash on close obstacles is highly practical and visually dramatic, warning players before they crash.
+  - The floating "+10" popup gives direct, juicy feedback upon eating food.
+  - The red/white impact border flash when crashing makes collisions feel impactful and satisfyingly punchy.
+
 ## [2026-06-07] Task 3: Collision Detection & Game Mechanics Test
 - **Status**: Passed successfully.
 - **Coverage**:
