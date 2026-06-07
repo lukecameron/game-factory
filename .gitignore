@@ -1,0 +1,16 @@
+# Git ignore rules for Game Factory
+
+# Test logs and temporary playback files
+test-logs/
+
+# Build artifacts
+game/game.wasm
+game/game.wasm.h
+*.wasm
+*.wasm.h
+
+# Temporary downloads
+.downloads/
+
+# Dependency directories
+node_modules/

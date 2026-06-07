@@ -1,0 +1,10 @@
+seed: 1
+seats: 1
+heartbeat: 50ms
+steps:
+  - wake: null
+  - shot: start
+  - rune: ' '
+  - shot: space_pressed
+  - advance: 2.5s
+  - shot: reset_after_delay
