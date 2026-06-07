@@ -4,25 +4,22 @@ heartbeat: 50ms
 steps:
   - wake: null
   - shot: start
-  - advance: 450ms
+  # Move right 4 ticks to X=23, Y=9
+  - advance: 600ms
   - shot: moved_right
-  # Test 180-degree safety lock: try to turn left immediately (while moving right)
-  - key: left
-  - advance: 150ms
-  - shot: should_not_turn_left
-  # Steer down
+  # Turn down and move 6 ticks to X=23, Y=15 to eat food
   - key: down
-  - advance: 300ms
-  - shot: moved_down
-  # Test 180-degree safety lock: try to turn up immediately (while moving down)
-  - key: up
-  - advance: 150ms
-  - shot: should_not_turn_up
-  # Steer left
+  - advance: 900ms
+  - shot: food_eaten
+  # Turn left and move 12 ticks to X=11, Y=15
   - key: left
-  - advance: 300ms
-  - shot: moved_left
-  # Pause game
+  - advance: 1800ms
+  - shot: before_obstacle_turn
+  # Turn up and move 4 ticks to X=11, Y=11 (hits obstacle)
+  - key: up
+  - advance: 600ms
+  - shot: game_over
+  # Restart game using space key
   - rune: ' '
-  - advance: 300ms
-  - shot: paused
+  - advance: 150ms
+  - shot: restarted

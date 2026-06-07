@@ -4,6 +4,18 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 3: Collision Detection, Spawning, Scoring, and Game Over Restart Mechanics
+- **Status**: Completed.
+- **Details**:
+  - Added food spawning and eating logic: Spawns food at random unoccupied cells. Eating food increases the score by 10, updates the high score, grows the snake by 1 segment, and triggers new food and obstacle spawning.
+  - Implemented obstacle generation: Generates 3 initial obstacles at startup, and generates one new obstacle dynamically every time food is eaten, using deterministic random seeding (`r.Rand()`).
+  - Added full collision detection:
+    - **Self-collision**: Checks if the snake head collides with any other segment in the snake body.
+    - **Obstacle-collision**: Checks if the snake head collides with any spawned obstacles.
+    - **Game Over state**: Pauses game ticks, blocks movements, and displays a flashing game over modal centered on the screen.
+  - Implemented restart mechanism: Pressing `Space` (ActConfirm) when the game is over calls a reset routine that clears obstacles/food/snake and starts a new session.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go).
+
 ## [2026-06-07] Task 2: Multi-segment Snake Movement & Input Safety
 - **Status**: Completed.
 - **Details**:

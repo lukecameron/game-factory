@@ -47,6 +47,8 @@ type room struct {
 	snake        []Point
 	entityDir    Point
 	lastMovedDir Point
+	food         Point
+	obstacles    []Point
 
 	startedAt time.Time
 }
@@ -65,6 +67,15 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.entityDir = Point{X: 1, Y: 0}
 	rm.lastMovedDir = Point{X: 1, Y: 0}
 	rm.gameStarted = true
+	rm.score = 0
+	rm.gameOver = false
+
+	// Generate initial food & obstacles
+	rm.food = rm.randomFreePoint(r, 0)
+	rm.obstacles = []Point{}
+	for i := 0; i < 3; i++ {
+		rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 5))
+	}
 }
 
 func (rm *room) OnJoin(r kit.Room, p kit.Player) { rm.render(r) }
@@ -88,23 +99,27 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 
 	switch action {
 	case kit.ActUp:
-		if rm.lastMovedDir.Y != 1 {
+		if rm.lastMovedDir.Y != 1 && !rm.gameOver {
 			rm.entityDir = Point{X: 0, Y: -1}
 		}
 	case kit.ActDown:
-		if rm.lastMovedDir.Y != -1 {
+		if rm.lastMovedDir.Y != -1 && !rm.gameOver {
 			rm.entityDir = Point{X: 0, Y: 1}
 		}
 	case kit.ActLeft:
-		if rm.lastMovedDir.X != 1 {
+		if rm.lastMovedDir.X != 1 && !rm.gameOver {
 			rm.entityDir = Point{X: -1, Y: 0}
 		}
 	case kit.ActRight:
-		if rm.lastMovedDir.X != -1 {
+		if rm.lastMovedDir.X != -1 && !rm.gameOver {
 			rm.entityDir = Point{X: 1, Y: 0}
 		}
 	case kit.ActConfirm:
-		rm.gameStarted = !rm.gameStarted
+		if rm.gameOver {
+			rm.reset(r)
+		} else {
+			rm.gameStarted = !rm.gameStarted
+		}
 	}
 	rm.render(r)
 }
@@ -123,16 +138,100 @@ func (rm *room) OnWake(r kit.Room) {
 	// Advance game state based on tickRate
 	if rm.gameStarted && !rm.gameOver && now.Sub(rm.lastTick) >= rm.tickRate {
 		rm.lastTick = now
-		rm.tick()
+		rm.tick(r)
 	}
 
 	rm.render(r)
 }
 
-func (rm *room) tick() {
+func (rm *room) reset(r kit.Room) {
+	rm.snake = []Point{
+		{X: 19, Y: 9},
+		{X: 18, Y: 9},
+		{X: 17, Y: 9},
+		{X: 16, Y: 9},
+	}
+	rm.entityDir = Point{X: 1, Y: 0}
+	rm.lastMovedDir = Point{X: 1, Y: 0}
+	rm.score = 0
+	rm.gameOver = false
+	rm.gameStarted = true
+	rm.lastTick = r.Now()
+	rm.startedAt = r.Now()
+
+	// Regenerate food and obstacles
+	rm.food = rm.randomFreePoint(r, 0)
+	rm.obstacles = []Point{}
+	for i := 0; i < 3; i++ {
+		rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 5))
+	}
+}
+
+func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
+	// Attempt up to 100 times to find a free spot
+	for attempt := 0; attempt < 100; attempt++ {
+		x := r.Rand().Intn(39)
+		y := r.Rand().Intn(18)
+		p := Point{X: x, Y: y}
+
+		// Check snake collision
+		inSnake := false
+		for _, sp := range rm.snake {
+			if sp == p {
+				inSnake = true
+				break
+			}
+		}
+		if inSnake {
+			continue
+		}
+
+		// Check food collision
+		if p == rm.food {
+			continue
+		}
+
+		// Check obstacles collision
+		inObstacle := false
+		for _, op := range rm.obstacles {
+			if op == p {
+				inObstacle = true
+				break
+			}
+		}
+		if inObstacle {
+			continue
+		}
+
+		// Avoid snake head range if requested
+		if avoidHeadRange > 0 && len(rm.snake) > 0 {
+			head := rm.snake[0]
+			distX := head.X - p.X
+			distY := head.Y - p.Y
+			if distX < 0 {
+				distX = -distX
+			}
+			if distY < 0 {
+				distY = -distY
+			}
+			if distX+distY <= avoidHeadRange {
+				continue
+			}
+		}
+
+		return p
+	}
+	// Fallback
+	return Point{X: 10, Y: 10}
+}
+
+func (rm *room) tick(r kit.Room) {
 	if len(rm.snake) == 0 {
 		return
 	}
+
+	// Save tail segment position before we shift, in case we eat food and grow
+	tail := rm.snake[len(rm.snake)-1]
 
 	// Move the body: shift all elements down
 	for i := len(rm.snake) - 1; i > 0; i-- {
@@ -157,6 +256,36 @@ func (rm *room) tick() {
 
 	// Update last moved direction
 	rm.lastMovedDir = rm.entityDir
+
+	// 1. Check self-collision
+	for _, sp := range rm.snake[1:] {
+		if rm.snake[0] == sp {
+			rm.gameOver = true
+			return
+		}
+	}
+
+	// 2. Check obstacle-collision
+	for _, op := range rm.obstacles {
+		if rm.snake[0] == op {
+			rm.gameOver = true
+			return
+		}
+	}
+
+	// 3. Check food-collision
+	if rm.snake[0] == rm.food {
+		// Grow snake by restoring tail
+		rm.snake = append(rm.snake, tail)
+		rm.score += 10
+		if rm.score > rm.highScore {
+			rm.highScore = rm.score
+		}
+		// Respawn food
+		rm.food = rm.randomFreePoint(r, 0)
+		// Spawn a new obstacle
+		rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 4))
+	}
 }
 
 func (rm *room) render(r kit.Room) {
@@ -188,7 +317,10 @@ func (rm *room) render(r kit.Room) {
 	// Pulsing status effect
 	var statusText string
 	var statusStyle kit.Style
-	if !rm.gameStarted {
+	if rm.gameOver {
+		statusText = "GAME OVER"
+		statusStyle = kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold} // Pink/Red
+	} else if !rm.gameStarted {
 		statusText = "PAUSED"
 		statusStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0x00), Attr: kit.AttrBold} // Yellow
 	} else {
@@ -203,23 +335,48 @@ func (rm *room) render(r kit.Room) {
 	}
 	f.Text(1, 62, "STATUS: "+statusText, statusStyle)
 
-	// Create lookup for snake coordinates to skip drawing grid dots
-	inSnake := make(map[Point]bool)
+	// Create lookup for coordinates to skip drawing grid dots
+	occupied := make(map[Point]bool)
 	for _, p := range rm.snake {
-		inSnake[p] = true
+		occupied[p] = true
+	}
+	occupied[rm.food] = true
+	for _, p := range rm.obstacles {
+		occupied[p] = true
 	}
 
 	// 3. Draw Grid Dots
 	for y := 0; y < 18; y++ {
 		for x := 0; x < 39; x++ {
-			if inSnake[Point{X: x, Y: y}] {
+			if occupied[Point{X: x, Y: y}] {
 				continue
 			}
 			f.SetRune(3+y, 1+x*2, '·', dotStyle)
 		}
 	}
 
-	// 4. Draw Snake (Neon gradient from Lime Green head to Cyan tail)
+	// 4. Draw Food (Pulsing glowing neon star)
+	elapsed := r.Now().Sub(rm.startedAt)
+	foodPulse := (elapsed.Milliseconds() / 150) % 6
+	var foodColor kit.Color
+	switch foodPulse {
+	case 0, 5:
+		foodColor = kit.RGB(0xff, 0x00, 0x55) // Neon pink-red
+	case 1, 4:
+		foodColor = kit.RGB(0xff, 0x55, 0x7f) // Slightly lighter
+	default:
+		foodColor = kit.RGB(0xff, 0xaa, 0xcc) // Very light pink pulse
+	}
+	foodStyle := kit.Style{FG: foodColor, Attr: kit.AttrBold}
+	f.SetWide(3+rm.food.Y, 1+rm.food.X*2, '★', foodStyle)
+
+	// 5. Draw Obstacles (Neon Amber triangles)
+	obstacleStyle := kit.Style{FG: kit.RGB(0xff, 0x8c, 0x00), Attr: kit.AttrBold} // Dark orange / amber
+	for _, op := range rm.obstacles {
+		f.SetWide(3+op.Y, 1+op.X*2, '▲', obstacleStyle)
+	}
+
+	// 6. Draw Snake (Neon gradient from Lime Green head to Cyan tail)
 	n := len(rm.snake)
 	for i := n - 1; i >= 0; i-- {
 		p := rm.snake[i]
@@ -238,7 +395,7 @@ func (rm *room) render(r kit.Room) {
 		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
 	}
 
-	// 5. Draw Footer Content
+	// 7. Draw Footer Content
 	f.Text(22, 4, "CONTROLS:", footerStyle)
 	col := 15
 	col = f.Text(22, col, " [", footerStyle)
@@ -252,6 +409,42 @@ func (rm *room) render(r kit.Room) {
 	col = f.Text(22, 63, " [", footerStyle)
 	col = f.Text(22, col, "Esc", keyStyle)
 	col = f.Text(22, col, "] Quit", footerStyle)
+
+	// 8. Draw Game Over Overlay
+	if rm.gameOver {
+		modalStyle := kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold} // Neon Pink/Red border
+		textStyle := kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}  // White bold
+		subTextStyle := kit.Style{FG: kit.RGB(0x8a, 0x2b, 0xe2)}                  // Violet
+		infoStyle := kit.Style{FG: kit.RGB(0x00, 0xff, 0xff)}                     // Aqua
+
+		// Draw a box from row 8 to 14, col 20 to 60 (width 40, height 7)
+		// Top border of modal
+		f.Text(8, 20, "╔══════════════════════════════════════╗", modalStyle)
+		f.Text(9, 20, "║                                      ║", modalStyle)
+		f.Text(10, 20, "║              GAME OVER               ║", modalStyle)
+		f.Text(11, 20, "║                                      ║", modalStyle)
+		f.Text(12, 20, "║                                      ║", modalStyle)
+		f.Text(13, 20, "║                                      ║", modalStyle)
+		f.Text(14, 20, "╚══════════════════════════════════════╝", modalStyle)
+
+		// Set the text content inside the box
+		// Pulsing game over text
+		gameOverPulse := (elapsed.Milliseconds() / 250) % 2
+		var titleStyle kit.Style
+		if gameOverPulse == 0 {
+			titleStyle = kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+		} else {
+			titleStyle = kit.Style{FG: kit.RGB(0xff, 0xaa, 0x00), Attr: kit.AttrBold}
+		}
+		f.Text(10, 35, "GAME OVER", titleStyle)
+
+		// Draw final score
+		f.Text(11, 28, fmt.Sprintf("FINAL SCORE: %04d", rm.score), textStyle)
+		f.Text(11, 47, "★", infoStyle) // Little star at the end
+
+		// Draw restart instruction
+		f.Text(13, 25, "Press [SPACE] to Restart", subTextStyle)
+	}
 
 	// Send viewport to each member
 	for _, p := range r.Members() {
