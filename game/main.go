@@ -53,6 +53,8 @@ type Palette struct {
 	Dot         kit.Color
 	SnakeHead   kit.Color
 	SnakeTail   kit.Color
+	Snake2Head  kit.Color
+	Snake2Tail  kit.Color
 	Food        kit.Color
 	Obstacle    kit.Color
 	Footer      kit.Color
@@ -70,6 +72,8 @@ func getPalettes() []Palette {
 			Dot:         kit.RGB(0x33, 0x33, 0x33), // Dark Gray
 			SnakeHead:   kit.RGB(0x39, 0xff, 0x14), // Lime Green
 			SnakeTail:   kit.RGB(0x00, 0xe5, 0xff), // Cyan
+			Snake2Head:  kit.RGB(0xff, 0x00, 0x7f), // Neon Pink
+			Snake2Tail:  kit.RGB(0xff, 0xa5, 0x00), // Neon Orange
 			Food:        kit.RGB(0xff, 0x00, 0x7f), // Neon Pink
 			Obstacle:    kit.RGB(0xff, 0x8c, 0x00), // Neon Orange/Amber
 			Footer:      kit.RGB(0x00, 0xe5, 0xff), // Light Cyan
@@ -84,6 +88,8 @@ func getPalettes() []Palette {
 			Dot:         kit.RGB(0x11, 0x22, 0x44), // Dark Navy
 			SnakeHead:   kit.RGB(0x00, 0xff, 0xcc), // Teal/Cyan
 			SnakeTail:   kit.RGB(0x00, 0x66, 0xff), // Blue
+			Snake2Head:  kit.RGB(0xff, 0x7f, 0x50), // Coral
+			Snake2Tail:  kit.RGB(0xff, 0xd7, 0x00), // Gold
 			Food:        kit.RGB(0xff, 0x7f, 0x50), // Coral
 			Obstacle:    kit.RGB(0xff, 0xd7, 0x00), // Gold
 			Footer:      kit.RGB(0x00, 0xcd, 0xcd), // Teal
@@ -98,6 +104,8 @@ func getPalettes() []Palette {
 			Dot:         kit.RGB(0x44, 0x22, 0x22), // Dark Rust
 			SnakeHead:   kit.RGB(0xff, 0xa5, 0x00), // Yellow-Orange
 			SnakeTail:   kit.RGB(0x8b, 0x00, 0x00), // Deep Red
+			Snake2Head:  kit.RGB(0xda, 0x70, 0xd6), // Neon Purple/Orchid
+			Snake2Tail:  kit.RGB(0xdc, 0x14, 0x3c), // Crimson
 			Food:        kit.RGB(0xda, 0x70, 0xd6), // Neon Purple
 			Obstacle:    kit.RGB(0xff, 0x00, 0xff), // Magenta
 			Footer:      kit.RGB(0xff, 0xc0, 0xcb), // Light Orange/Pink
@@ -112,6 +120,8 @@ func getPalettes() []Palette {
 			Dot:         kit.RGB(0x00, 0x22, 0x00), // Very Dark Green
 			SnakeHead:   kit.RGB(0xcc, 0xff, 0xcc), // White-Green
 			SnakeTail:   kit.RGB(0x32, 0xcd, 0x32), // Lime Green
+			Snake2Head:  kit.RGB(0xff, 0xff, 0x00), // Yellow
+			Snake2Tail:  kit.RGB(0x00, 0x64, 0x00), // Forest Green
 			Food:        kit.RGB(0xad, 0xff, 0x2f), // Matrix Yellow
 			Obstacle:    kit.RGB(0x22, 0x8b, 0x22), // Forest Green
 			Footer:      kit.RGB(0x98, 0xfb, 0x98), // Pale Green
@@ -126,6 +136,8 @@ func getPalettes() []Palette {
 			Dot:         kit.RGB(0x33, 0x11, 0x44), // Pastel Violet
 			SnakeHead:   kit.RGB(0xff, 0x69, 0xb4), // Hot Pink
 			SnakeTail:   kit.RGB(0x00, 0xff, 0xff), // Cyan
+			Snake2Head:  kit.RGB(0xee, 0x82, 0xee), // Soft Purple
+			Snake2Tail:  kit.RGB(0xff, 0xff, 0x00), // Yellow
 			Food:        kit.RGB(0xff, 0xa5, 0x00), // Neon Orange
 			Obstacle:    kit.RGB(0x4b, 0x00, 0x82), // Deep Indigo
 			Footer:      kit.RGB(0xee, 0x82, 0xee), // Soft Purple
@@ -157,16 +169,25 @@ type room struct {
 	frame       *kit.Frame
 	lastTick    time.Time
 	tickRate    time.Duration
-	score       int
+	score1      int
+	score2      int
 	highScore   int
 	gameStarted bool
 	gameOver    bool
 
-	snake        []Point
-	entityDir    Point
-	lastMovedDir Point
-	food         Point
-	obstacles    []Point
+	snake1        []Point
+	entityDir1    Point
+	lastMovedDir1 Point
+
+	snake2        []Point
+	entityDir2    Point
+	lastMovedDir2 Point
+
+	crashed1 bool
+	crashed2 bool
+
+	food      Point
+	obstacles []Point
 
 	startedAt time.Time
 
@@ -268,16 +289,30 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.lastTick = r.Now()
 	rm.startedAt = r.Now()
 	rm.tickRate = 150 * time.Millisecond
-	rm.snake = []Point{
-		{X: 19, Y: 9},
-		{X: 18, Y: 9},
-		{X: 17, Y: 9},
-		{X: 16, Y: 9},
+	rm.snake1 = []Point{
+		{X: 10, Y: 9},
+		{X: 9, Y: 9},
+		{X: 8, Y: 9},
+		{X: 7, Y: 9},
 	}
-	rm.entityDir = Point{X: 1, Y: 0}
-	rm.lastMovedDir = Point{X: 1, Y: 0}
+	rm.entityDir1 = Point{X: 1, Y: 0}
+	rm.lastMovedDir1 = Point{X: 1, Y: 0}
+
+	rm.snake2 = []Point{
+		{X: 28, Y: 9},
+		{X: 29, Y: 9},
+		{X: 30, Y: 9},
+		{X: 31, Y: 9},
+	}
+	rm.entityDir2 = Point{X: -1, Y: 0}
+	rm.lastMovedDir2 = Point{X: -1, Y: 0}
+
+	rm.crashed1 = false
+	rm.crashed2 = false
+
 	rm.gameStarted = true
-	rm.score = 0
+	rm.score1 = 0
+	rm.score2 = 0
 	rm.gameOver = false
 	rm.themeIndex = 0
 	rm.gameMode = ModeClassic
@@ -305,39 +340,117 @@ func (rm *room) OnJoin(r kit.Room, p kit.Player) {
 func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 	rm.activePlayer = p
 	rm.activePlayerSet = true
-	action := kit.Resolve(in, kit.CtxNav)
 
-	// Custom support for WASD controls
-	if in.Kind == kit.InputRune {
-		switch in.Rune {
-		case 'w', 'W':
-			action = kit.ActUp
-		case 's', 'S':
-			action = kit.ActDown
-		case 'a', 'A':
-			action = kit.ActLeft
-		case 'd', 'D':
-			action = kit.ActRight
+	// Identify player index
+	members := r.Members()
+	isPlayer1 := true
+	isPlayer2 := false
+	if len(members) >= 2 {
+		if p.AccountID == members[0].AccountID {
+			isPlayer1 = true
+			isPlayer2 = false
+		} else if p.AccountID == members[1].AccountID {
+			isPlayer1 = false
+			isPlayer2 = true
+		} else {
+			isPlayer1 = false
+			isPlayer2 = false
 		}
 	}
 
+	// Handle steering keys concurrently
+	if !rm.gameOver && rm.gameStarted {
+		if in.Kind == kit.InputRune {
+			switch in.Rune {
+			case 'w', 'W':
+				if isPlayer1 && rm.lastMovedDir1.Y != 1 {
+					rm.entityDir1 = Point{X: 0, Y: -1}
+				} else if isPlayer2 && rm.lastMovedDir2.Y != 1 {
+					rm.entityDir2 = Point{X: 0, Y: -1}
+				}
+			case 's', 'S':
+				if isPlayer1 && rm.lastMovedDir1.Y != -1 {
+					rm.entityDir1 = Point{X: 0, Y: 1}
+				} else if isPlayer2 && rm.lastMovedDir2.Y != -1 {
+					rm.entityDir2 = Point{X: 0, Y: 1}
+				}
+			case 'a', 'A':
+				if isPlayer1 && rm.lastMovedDir1.X != 1 {
+					rm.entityDir1 = Point{X: -1, Y: 0}
+				} else if isPlayer2 && rm.lastMovedDir2.X != 1 {
+					rm.entityDir2 = Point{X: -1, Y: 0}
+				}
+			case 'd', 'D':
+				if isPlayer1 && rm.lastMovedDir1.X != -1 {
+					rm.entityDir1 = Point{X: 1, Y: 0}
+				} else if isPlayer2 && rm.lastMovedDir2.X != -1 {
+					rm.entityDir2 = Point{X: 1, Y: 0}
+				}
+			}
+		} else if in.Kind == kit.InputKey {
+			switch in.Key {
+			case kit.KeyUp:
+				if isPlayer2 {
+					if rm.lastMovedDir2.Y != 1 {
+						rm.entityDir2 = Point{X: 0, Y: -1}
+					}
+				} else if isPlayer1 && len(members) < 2 {
+					if rm.lastMovedDir2.Y != 1 {
+						rm.entityDir2 = Point{X: 0, Y: -1}
+					}
+				} else if isPlayer1 && len(members) >= 2 {
+					if rm.lastMovedDir1.Y != 1 {
+						rm.entityDir1 = Point{X: 0, Y: -1}
+					}
+				}
+			case kit.KeyDown:
+				if isPlayer2 {
+					if rm.lastMovedDir2.Y != -1 {
+						rm.entityDir2 = Point{X: 0, Y: 1}
+					}
+				} else if isPlayer1 && len(members) < 2 {
+					if rm.lastMovedDir2.Y != -1 {
+						rm.entityDir2 = Point{X: 0, Y: 1}
+					}
+				} else if isPlayer1 && len(members) >= 2 {
+					if rm.lastMovedDir1.Y != -1 {
+						rm.entityDir1 = Point{X: 0, Y: 1}
+					}
+				}
+			case kit.KeyLeft:
+				if isPlayer2 {
+					if rm.lastMovedDir2.X != 1 {
+						rm.entityDir2 = Point{X: -1, Y: 0}
+					}
+				} else if isPlayer1 && len(members) < 2 {
+					if rm.lastMovedDir2.X != 1 {
+						rm.entityDir2 = Point{X: -1, Y: 0}
+					}
+				} else if isPlayer1 && len(members) >= 2 {
+					if rm.lastMovedDir1.X != 1 {
+						rm.entityDir1 = Point{X: -1, Y: 0}
+					}
+				}
+			case kit.KeyRight:
+				if isPlayer2 {
+					if rm.lastMovedDir2.X != -1 {
+						rm.entityDir2 = Point{X: 1, Y: 0}
+					}
+				} else if isPlayer1 && len(members) < 2 {
+					if rm.lastMovedDir2.X != -1 {
+						rm.entityDir2 = Point{X: 1, Y: 0}
+					}
+				} else if isPlayer1 && len(members) >= 2 {
+					if rm.lastMovedDir1.X != -1 {
+						rm.entityDir1 = Point{X: 1, Y: 0}
+					}
+				}
+			}
+		}
+	}
+
+	action := kit.Resolve(in, kit.CtxNav)
 	switch action {
-	case kit.ActUp:
-		if rm.lastMovedDir.Y != 1 && !rm.gameOver {
-			rm.entityDir = Point{X: 0, Y: -1}
-		}
-	case kit.ActDown:
-		if rm.lastMovedDir.Y != -1 && !rm.gameOver {
-			rm.entityDir = Point{X: 0, Y: 1}
-		}
-	case kit.ActLeft:
-		if rm.lastMovedDir.X != 1 && !rm.gameOver {
-			rm.entityDir = Point{X: -1, Y: 0}
-		}
-	case kit.ActRight:
-		if rm.lastMovedDir.X != -1 && !rm.gameOver {
-			rm.entityDir = Point{X: 1, Y: 0}
-		}
 	case kit.ActConfirm:
 		if rm.gameOver {
 			rm.reset(r)
@@ -381,15 +494,29 @@ func (rm *room) OnWake(r kit.Room) {
 }
 
 func (rm *room) reset(r kit.Room) {
-	rm.snake = []Point{
-		{X: 19, Y: 9},
-		{X: 18, Y: 9},
-		{X: 17, Y: 9},
-		{X: 16, Y: 9},
+	rm.snake1 = []Point{
+		{X: 10, Y: 9},
+		{X: 9, Y: 9},
+		{X: 8, Y: 9},
+		{X: 7, Y: 9},
 	}
-	rm.entityDir = Point{X: 1, Y: 0}
-	rm.lastMovedDir = Point{X: 1, Y: 0}
-	rm.score = 0
+	rm.entityDir1 = Point{X: 1, Y: 0}
+	rm.lastMovedDir1 = Point{X: 1, Y: 0}
+
+	rm.snake2 = []Point{
+		{X: 28, Y: 9},
+		{X: 29, Y: 9},
+		{X: 30, Y: 9},
+		{X: 31, Y: 9},
+	}
+	rm.entityDir2 = Point{X: -1, Y: 0}
+	rm.lastMovedDir2 = Point{X: -1, Y: 0}
+
+	rm.crashed1 = false
+	rm.crashed2 = false
+
+	rm.score1 = 0
+	rm.score2 = 0
 	rm.gameOver = false
 	rm.gameStarted = true
 	rm.lastTick = r.Now()
@@ -421,15 +548,27 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 			continue
 		}
 
-		// Check snake collision
-		inSnake := false
-		for _, sp := range rm.snake {
+		// Check snake 1 collision
+		inSnake1 := false
+		for _, sp := range rm.snake1 {
 			if sp == p {
-				inSnake = true
+				inSnake1 = true
 				break
 			}
 		}
-		if inSnake {
+		if inSnake1 {
+			continue
+		}
+
+		// Check snake 2 collision
+		inSnake2 := false
+		for _, sp := range rm.snake2 {
+			if sp == p {
+				inSnake2 = true
+				break
+			}
+		}
+		if inSnake2 {
 			continue
 		}
 
@@ -463,17 +602,37 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 		}
 
 		// Avoid snake head range if requested
-		if avoidHeadRange > 0 && len(rm.snake) > 0 {
-			head := rm.snake[0]
-			distX := head.X - p.X
-			distY := head.Y - p.Y
-			if distX < 0 {
-				distX = -distX
+		if avoidHeadRange > 0 {
+			headAvoid := false
+			if len(rm.snake1) > 0 {
+				head1 := rm.snake1[0]
+				distX := head1.X - p.X
+				distY := head1.Y - p.Y
+				if distX < 0 {
+					distX = -distX
+				}
+				if distY < 0 {
+					distY = -distY
+				}
+				if distX+distY <= avoidHeadRange {
+					headAvoid = true
+				}
 			}
-			if distY < 0 {
-				distY = -distY
+			if len(rm.snake2) > 0 {
+				head2 := rm.snake2[0]
+				distX := head2.X - p.X
+				distY := head2.Y - p.Y
+				if distX < 0 {
+					distX = -distX
+				}
+				if distY < 0 {
+					distY = -distY
+				}
+				if distX+distY <= avoidHeadRange {
+					headAvoid = true
+				}
 			}
-			if distX+distY <= avoidHeadRange {
+			if headAvoid {
 				continue
 			}
 		}
@@ -485,37 +644,59 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 }
 
 func (rm *room) tick(r kit.Room) {
-	if len(rm.snake) == 0 {
+	if len(rm.snake1) == 0 || len(rm.snake2) == 0 {
 		return
 	}
 
-	// Save tail segment position before we shift, in case we eat food and grow
-	tail := rm.snake[len(rm.snake)-1]
-	oldHead := rm.snake[0]
+	// Save tail segment positions
+	tail1 := rm.snake1[len(rm.snake1)-1]
+	tail2 := rm.snake2[len(rm.snake2)-1]
+	oldHead1 := rm.snake1[0]
+	oldHead2 := rm.snake2[0]
 
-	// Move the body: shift all elements down
-	for i := len(rm.snake) - 1; i > 0; i-- {
-		rm.snake[i] = rm.snake[i-1]
+	// Move Snake 1 body
+	for i := len(rm.snake1) - 1; i > 0; i-- {
+		rm.snake1[i] = rm.snake1[i-1]
+	}
+	// Update Snake 1 head position
+	rm.snake1[0].X += rm.entityDir1.X
+	rm.snake1[0].Y += rm.entityDir1.Y
+
+	// Move Snake 2 body
+	for i := len(rm.snake2) - 1; i > 0; i-- {
+		rm.snake2[i] = rm.snake2[i-1]
+	}
+	// Update Snake 2 head position
+	rm.snake2[0].X += rm.entityDir2.X
+	rm.snake2[0].Y += rm.entityDir2.Y
+
+	// Wrap boundaries for Snake 1
+	if rm.snake1[0].X < 0 {
+		rm.snake1[0].X = 38
+	} else if rm.snake1[0].X > 38 {
+		rm.snake1[0].X = 0
+	}
+	if rm.snake1[0].Y < 0 {
+		rm.snake1[0].Y = 17
+	} else if rm.snake1[0].Y > 17 {
+		rm.snake1[0].Y = 0
 	}
 
-	// Update the head position
-	rm.snake[0].X += rm.entityDir.X
-	rm.snake[0].Y += rm.entityDir.Y
-
-	// Wrap around boundaries (Playfield width is 39 grid units, height is 18)
-	if rm.snake[0].X < 0 {
-		rm.snake[0].X = 38
-	} else if rm.snake[0].X > 38 {
-		rm.snake[0].X = 0
+	// Wrap boundaries for Snake 2
+	if rm.snake2[0].X < 0 {
+		rm.snake2[0].X = 38
+	} else if rm.snake2[0].X > 38 {
+		rm.snake2[0].X = 0
 	}
-	if rm.snake[0].Y < 0 {
-		rm.snake[0].Y = 17
-	} else if rm.snake[0].Y > 17 {
-		rm.snake[0].Y = 0
+	if rm.snake2[0].Y < 0 {
+		rm.snake2[0].Y = 17
+	} else if rm.snake2[0].Y > 17 {
+		rm.snake2[0].Y = 0
 	}
 
-	// Update last moved direction
-	rm.lastMovedDir = rm.entityDir
+	// Update last moved directions
+	rm.lastMovedDir1 = rm.entityDir1
+	rm.lastMovedDir2 = rm.entityDir2
 
 	// Store old hazard positions for swap collision check
 	oldHazards := make([]Point, len(rm.hazards))
@@ -540,108 +721,157 @@ func (rm *room) tick(r kit.Room) {
 		h.Pos.Y = nextY
 	}
 
-	// 1. Check self-collision
-	for _, sp := range rm.snake[1:] {
-		if rm.snake[0] == sp {
-			rm.gameOver = true
-			rm.lastCollisionAt = r.Now()
-			r.Post(kit.Result{
-				Rankings: []kit.PlayerResult{
-					{
-						Player: rm.getActivePlayer(r),
-						Metric: rm.score,
-						Status: kit.StatusFinished,
-					},
-				},
-			})
-			return
+	// Check collisions for Snake 1
+	c1Self := false
+	for _, sp := range rm.snake1[1:] {
+		if rm.snake1[0] == sp {
+			c1Self = true
 		}
 	}
-
-	// 2. Check obstacle-collision
+	c1Obstacle := false
 	for _, op := range rm.obstacles {
-		if rm.snake[0] == op {
-			rm.gameOver = true
-			rm.lastCollisionAt = r.Now()
-			r.Post(kit.Result{
-				Rankings: []kit.PlayerResult{
-					{
-						Player: rm.getActivePlayer(r),
-						Metric: rm.score,
-						Status: kit.StatusFinished,
-					},
-				},
-			})
-			return
+		if rm.snake1[0] == op {
+			c1Obstacle = true
+		}
+	}
+	c1Maze := rm.isMazeWall(rm.snake1[0])
+	c1Hazard := false
+	for i, hp := range rm.hazards {
+		if rm.snake1[0] == hp.Pos || (rm.snake1[0] == oldHazards[i] && oldHead1 == hp.Pos) {
+			c1Hazard = true
+		}
+	}
+	c1Snake2 := false
+	for _, sp := range rm.snake2 {
+		if rm.snake1[0] == sp {
+			c1Snake2 = true
 		}
 	}
 
-	// 2.5 Check maze-wall collision
-	if rm.isMazeWall(rm.snake[0]) {
+	if c1Self || c1Obstacle || c1Maze || c1Hazard || c1Snake2 {
+		rm.crashed1 = true
+	}
+
+	// Check collisions for Snake 2
+	c2Self := false
+	for _, sp := range rm.snake2[1:] {
+		if rm.snake2[0] == sp {
+			c2Self = true
+		}
+	}
+	c2Obstacle := false
+	for _, op := range rm.obstacles {
+		if rm.snake2[0] == op {
+			c2Obstacle = true
+		}
+	}
+	c2Maze := rm.isMazeWall(rm.snake2[0])
+	c2Hazard := false
+	for i, hp := range rm.hazards {
+		if rm.snake2[0] == hp.Pos || (rm.snake2[0] == oldHazards[i] && oldHead2 == hp.Pos) {
+			c2Hazard = true
+		}
+	}
+	c2Snake1 := false
+	for _, sp := range rm.snake1 {
+		if rm.snake2[0] == sp {
+			c2Snake1 = true
+		}
+	}
+
+	if c2Self || c2Obstacle || c2Maze || c2Hazard || c2Snake1 {
+		rm.crashed2 = true
+	}
+
+	// If either crashed, it's Game Over!
+	if rm.crashed1 || rm.crashed2 {
 		rm.gameOver = true
 		rm.lastCollisionAt = r.Now()
-		r.Post(kit.Result{
-			Rankings: []kit.PlayerResult{
-				{
-					Player: rm.getActivePlayer(r),
-					Metric: rm.score,
-					Status: kit.StatusFinished,
+
+		// Post results to the leaderboard
+		members := r.Members()
+		if len(members) >= 2 {
+			p1Result := kit.PlayerResult{
+				Player: members[0],
+				Metric: rm.score1,
+				Status: kit.StatusFinished,
+			}
+			p2Result := kit.PlayerResult{
+				Player: members[1],
+				Metric: rm.score2,
+				Status: kit.StatusFinished,
+			}
+			r.Post(kit.Result{
+				Rankings: []kit.PlayerResult{p1Result, p2Result},
+			})
+		} else {
+			// Single player
+			r.Post(kit.Result{
+				Rankings: []kit.PlayerResult{
+					{
+						Player: rm.getActivePlayer(r),
+						Metric: rm.score1,
+						Status: kit.StatusFinished,
+					},
 				},
-			},
-		})
+			})
+		}
 		return
 	}
 
-	// 2.6 Check patrolling hazard collision (including swap/phase-through check)
-	for i, hp := range rm.hazards {
-		if rm.snake[0] == hp.Pos || (rm.snake[0] == oldHazards[i] && oldHead == hp.Pos) {
-			rm.gameOver = true
-			rm.lastCollisionAt = r.Now()
-			r.Post(kit.Result{
-				Rankings: []kit.PlayerResult{
-					{
-						Player: rm.getActivePlayer(r),
-						Metric: rm.score,
-						Status: kit.StatusFinished,
-					},
-				},
-			})
-			return
+	// Check food-collision for Snake 1
+	if rm.snake1[0] == rm.food {
+		rm.snake1 = append(rm.snake1, tail1)
+		rm.score1 += 10
+		if rm.score1 > rm.highScore {
+			rm.highScore = rm.score1
 		}
+		rm.onFoodEaten(r, rm.food, 1)
+	} else if rm.snake2[0] == rm.food {
+		// Check food-collision for Snake 2
+		rm.snake2 = append(rm.snake2, tail2)
+		rm.score2 += 10
+		if rm.score2 > rm.highScore {
+			rm.highScore = rm.score2
+		}
+		rm.onFoodEaten(r, rm.food, 2)
 	}
+}
 
-	// 3. Check food-collision
-	if rm.snake[0] == rm.food {
-		// Grow snake by restoring tail
-		rm.snake = append(rm.snake, tail)
-		rm.score += 10
-		if rm.score > rm.highScore {
-			rm.highScore = rm.score
-		}
-
-		// Dynamic difficulty speed up: decrease tick rate as score increases (clamp at 60ms)
-		speedMs := 150 - (rm.score/10)*5
-		if speedMs < 60 {
-			speedMs = 60
-		}
-		rm.tickRate = time.Duration(speedMs) * time.Millisecond
-
-		// Add score popup
-		palettes := getPalettes()
-		theme := palettes[rm.themeIndex]
-		rm.popups = append(rm.popups, ScorePopup{
-			X:         rm.food.X,
-			Y:         rm.food.Y,
-			Text:      "+10",
-			Color:     theme.Food,
-			CreatedAt: r.Now(),
-		})
-
-		// Respawn food
-		rm.food = rm.randomFreePoint(r, 0)
-		// Spawn a new obstacle
-		rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 4))
+func (rm *room) onFoodEaten(r kit.Room, foodPos Point, snakeNum int) {
+	totalScore := rm.score1 + rm.score2
+	speedMs := 150 - (totalScore/10)*5
+	if speedMs < 60 {
+		speedMs = 60
 	}
+	rm.tickRate = time.Duration(speedMs) * time.Millisecond
+
+	palettes := getPalettes()
+	theme := palettes[rm.themeIndex]
+	var popupColor kit.Color
+	if snakeNum == 1 {
+		popupColor = theme.SnakeHead
+	} else {
+		popupColor = theme.Snake2Head
+	}
+	rm.popups = append(rm.popups, ScorePopup{
+		X:         foodPos.X,
+		Y:         foodPos.Y,
+		Text:      "+10",
+		Color:     popupColor,
+		CreatedAt: r.Now(),
+	})
+
+	rm.food = rm.randomFreePoint(r, 0)
+	rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 4))
+}
+
+func centerText(text string, width int) string {
+	if len(text) >= width {
+		return text[:width]
+	}
+	pad := (width - len(text)) / 2
+	return fmt.Sprintf("%*s%s", pad, "", text)
 }
 
 func (rm *room) render(r kit.Room) {
@@ -665,27 +895,28 @@ func (rm *room) render(r kit.Room) {
 	// 1. Draw Border (Animates dynamically)
 	rm.drawBorder(f, now)
 
-	rm.updateActivePlayer(r)
+	members := r.Members()
 
 	// 2. Draw Header Content
-	f.Text(1, 2, "▲▼ NEON SNAKE ▲▼", headerStyle)
-	f.Text(1, 19, "SCORE:", headerStyle)
-	f.Text(1, 25, fmt.Sprintf("%04d", rm.score), valueStyle)
+	f.Text(1, 2, "▲▼ NEON DUEL ▲▼", headerStyle)
 
-	f.Text(1, 30, "HIGH:", headerStyle)
-	f.Text(1, 35, fmt.Sprintf("%04d", rm.highScore), valueStyle)
-
-	// In multiplayer, show active player handle
-	var themeStartCol int
-	if len(r.Members()) > 1 && rm.activePlayerSet {
-		f.Text(1, 40, "SEAT:", headerStyle)
-		f.Text(1, 45, rm.activePlayer.Handle, valueStyle)
-		themeStartCol = 52
+	if len(members) >= 2 {
+		f.Text(1, 20, "P1:", headerStyle)
+		f.Text(1, 23, fmt.Sprintf("%04d", rm.score1), valueStyle)
+		f.Text(1, 30, "P2:", headerStyle)
+		f.Text(1, 33, fmt.Sprintf("%04d", rm.score2), valueStyle)
 	} else {
-		themeStartCol = 40
+		f.Text(1, 20, "S1:", headerStyle)
+		f.Text(1, 23, fmt.Sprintf("%04d", rm.score1), valueStyle)
+		f.Text(1, 30, "S2:", headerStyle)
+		f.Text(1, 33, fmt.Sprintf("%04d", rm.score2), valueStyle)
 	}
-	f.Text(1, themeStartCol, "THEME:", headerStyle)
-	f.Text(1, themeStartCol+7, theme.Name, valueStyle)
+
+	f.Text(1, 40, "HIGH:", headerStyle)
+	f.Text(1, 45, fmt.Sprintf("%04d", rm.highScore), valueStyle)
+
+	f.Text(1, 51, "THEME:", headerStyle)
+	f.Text(1, 58, theme.Name, valueStyle)
 
 	// Pulsing status effect (right-aligned to column 78)
 	var statusText string
@@ -710,7 +941,10 @@ func (rm *room) render(r kit.Room) {
 
 	// Create lookup for coordinates to skip drawing grid dots
 	occupied := make(map[Point]bool)
-	for _, sp := range rm.snake {
+	for _, sp := range rm.snake1 {
+		occupied[sp] = true
+	}
+	for _, sp := range rm.snake2 {
 		occupied[sp] = true
 	}
 	occupied[rm.food] = true
@@ -763,19 +997,43 @@ func (rm *room) render(r kit.Room) {
 
 	// 5. Draw Obstacles (Neon triangles with warning flash when head is close)
 	for _, op := range rm.obstacles {
-		head := rm.snake[0]
-		distX := head.X - op.X
-		if distX < 0 {
-			distX = -distX
+		var dist1, dist2 int
+		if len(rm.snake1) > 0 {
+			head1 := rm.snake1[0]
+			dx := head1.X - op.X
+			dy := head1.Y - op.Y
+			if dx < 0 {
+				dx = -dx
+			}
+			if dy < 0 {
+				dy = -dy
+			}
+			dist1 = dx + dy
+		} else {
+			dist1 = 999
 		}
-		distY := head.Y - op.Y
-		if distY < 0 {
-			distY = -distY
+		if len(rm.snake2) > 0 {
+			head2 := rm.snake2[0]
+			dx := head2.X - op.X
+			dy := head2.Y - op.Y
+			if dx < 0 {
+				dx = -dx
+			}
+			if dy < 0 {
+				dy = -dy
+			}
+			dist2 = dx + dy
+		} else {
+			dist2 = 999
 		}
-		dist := distX + distY
+
+		minDist := dist1
+		if dist2 < minDist {
+			minDist = dist2
+		}
 
 		var obstacleStyle kit.Style
-		if dist <= 2 && rm.gameStarted && !rm.gameOver {
+		if minDist <= 2 && rm.gameStarted && !rm.gameOver {
 			flashCycle := (elapsed.Milliseconds() / 100) % 2
 			if flashCycle == 0 {
 				obstacleStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
@@ -791,19 +1049,43 @@ func (rm *room) render(r kit.Room) {
 
 	// 5.5 Draw Patrolling Hazards (Neon diamond with pulse and head warning flash)
 	for _, hp := range rm.hazards {
-		head := rm.snake[0]
-		distX := head.X - hp.Pos.X
-		if distX < 0 {
-			distX = -distX
+		var dist1, dist2 int
+		if len(rm.snake1) > 0 {
+			head1 := rm.snake1[0]
+			dx := head1.X - hp.Pos.X
+			dy := head1.Y - hp.Pos.Y
+			if dx < 0 {
+				dx = -dx
+			}
+			if dy < 0 {
+				dy = -dy
+			}
+			dist1 = dx + dy
+		} else {
+			dist1 = 999
 		}
-		distY := head.Y - hp.Pos.Y
-		if distY < 0 {
-			distY = -distY
+		if len(rm.snake2) > 0 {
+			head2 := rm.snake2[0]
+			dx := head2.X - hp.Pos.X
+			dy := head2.Y - hp.Pos.Y
+			if dx < 0 {
+				dx = -dx
+			}
+			if dy < 0 {
+				dy = -dy
+			}
+			dist2 = dx + dy
+		} else {
+			dist2 = 999
 		}
-		dist := distX + distY
+
+		minDist := dist1
+		if dist2 < minDist {
+			minDist = dist2
+		}
 
 		var hazardStyle kit.Style
-		if dist <= 2 && rm.gameStarted && !rm.gameOver {
+		if minDist <= 2 && rm.gameStarted && !rm.gameOver {
 			flashCycle := (elapsed.Milliseconds() / 100) % 2
 			if flashCycle == 0 {
 				hazardStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
@@ -818,22 +1100,41 @@ func (rm *room) render(r kit.Room) {
 		f.SetWide(3+hp.Pos.Y, 1+hp.Pos.X*2, '❖', hazardStyle)
 	}
 
-	// 6. Draw Snake (Neon gradient from SnakeHead to SnakeTail, flowing dynamically)
-	n := len(rm.snake)
+	// 6. Draw Snake 1 (gradient from SnakeHead to SnakeTail, flowing dynamically)
+	n1 := len(rm.snake1)
 	timeShift := float64(now.Sub(rm.startedAt).Milliseconds()%2000) / 2000.0
-	for i := n - 1; i >= 0; i-- {
-		p := rm.snake[i]
+	for i := n1 - 1; i >= 0; i-- {
+		p := rm.snake1[i]
 		var segmentStyle kit.Style
 		if i == 0 {
 			headPulse := 0.85 + 0.15*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds())*0.006)
 			segmentStyle = kit.Style{FG: brightenColor(theme.SnakeHead, headPulse)}
 		} else {
-			ratio := float64(i) / float64(n-1)
+			ratio := float64(i) / float64(n1-1)
 			shiftedRatio := ratio + timeShift
 			if shiftedRatio > 1.0 {
 				shiftedRatio -= 1.0
 			}
 			segmentStyle = kit.Style{FG: interpolateColor(theme.SnakeHead, theme.SnakeTail, shiftedRatio)}
+		}
+		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
+	}
+
+	// Draw Snake 2 (gradient from Snake2Head to Snake2Tail, flowing dynamically)
+	n2 := len(rm.snake2)
+	for i := n2 - 1; i >= 0; i-- {
+		p := rm.snake2[i]
+		var segmentStyle kit.Style
+		if i == 0 {
+			headPulse := 0.85 + 0.15*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds())*0.006)
+			segmentStyle = kit.Style{FG: brightenColor(theme.Snake2Head, headPulse)}
+		} else {
+			ratio := float64(i) / float64(n2-1)
+			shiftedRatio := ratio + timeShift
+			if shiftedRatio > 1.0 {
+				shiftedRatio -= 1.0
+			}
+			segmentStyle = kit.Style{FG: interpolateColor(theme.Snake2Head, theme.Snake2Tail, shiftedRatio)}
 		}
 		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
 	}
@@ -861,35 +1162,35 @@ func (rm *room) render(r kit.Room) {
 	}
 	rm.popups = activePopups
 
-	// 7.5 Draw Divider on row 21 with Mode and active player text
+	// 7.5 Draw Divider on row 21 with Mode and player text
 	var dividerText string
-	if len(r.Members()) > 1 && rm.activePlayerSet {
-		dividerText = fmt.Sprintf(" MODE: %s │ ACTIVE SEAT: %s ", rm.getModeName(), rm.activePlayer.Handle)
+	if len(members) >= 2 {
+		dividerText = fmt.Sprintf(" MODE: %s │ P1: %s VS P2: %s ", rm.getModeName(), members[0].Handle, members[1].Handle)
 	} else {
-		dividerText = fmt.Sprintf(" MODE: %s ", rm.getModeName())
+		dividerText = fmt.Sprintf(" MODE: %s │ DUAL CONTROL CO-OP ", rm.getModeName())
 	}
 	rm.drawDividerWithText(f, 21, dividerText, now)
 
 	// 8. Draw Footer Content
-	f.Text(22, 4, "CONTROLS:", footerStyle)
-	col := 13
+	f.Text(22, 2, "CONTROLS:", footerStyle)
+	col := 12
 	col = f.Text(22, col, " [", footerStyle)
-	col = f.Text(22, col, "WASD", keyStyle)
+	col = f.Text(22, col, "WASD/Arrows", keyStyle)
 	col = f.Text(22, col, "] Move", footerStyle)
 
-	col = f.Text(22, 27, " [", footerStyle)
+	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "T", keyStyle)
 	col = f.Text(22, col, "] Theme", footerStyle)
 
-	col = f.Text(22, 39, " [", footerStyle)
+	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "M", keyStyle)
 	col = f.Text(22, col, "] Mode", footerStyle)
 
-	col = f.Text(22, 50, " [", footerStyle)
+	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "Space", keyStyle)
 	col = f.Text(22, col, "] Pause", footerStyle)
 
-	col = f.Text(22, 67, " [", footerStyle)
+	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "Esc", keyStyle)
 	col = f.Text(22, col, "] Quit", footerStyle)
 
@@ -898,7 +1199,6 @@ func (rm *room) render(r kit.Room) {
 		modalStyle := kit.Style{FG: theme.ModalBorder, Attr: kit.AttrBold}
 		textStyle := kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
 		subTextStyle := kit.Style{FG: theme.Border}
-		infoStyle := kit.Style{FG: theme.Header}
 
 		f.Text(8, 20, "╔══════════════════════════════════════╗", modalStyle)
 		f.Text(9, 20, "║                                      ║", modalStyle)
@@ -917,14 +1217,27 @@ func (rm *room) render(r kit.Room) {
 		}
 		f.Text(10, 35, "GAME OVER", titleStyle)
 
-		var scoreText string
-		if len(r.Members()) > 1 && rm.activePlayerSet {
-			scoreText = fmt.Sprintf("FINAL SCORE: %04d (%s)", rm.score, rm.activePlayer.Handle)
+		var winnerMsg string
+		if rm.crashed1 && rm.crashed2 {
+			winnerMsg = "DRAW / MUTUAL CRASH"
+		} else if rm.crashed1 {
+			if len(members) >= 2 {
+				winnerMsg = fmt.Sprintf("%s WINS!", members[1].Handle)
+			} else {
+				winnerMsg = "SNAKE 2 WINS!"
+			}
 		} else {
-			scoreText = fmt.Sprintf("FINAL SCORE: %04d", rm.score)
+			if len(members) >= 2 {
+				winnerMsg = fmt.Sprintf("%s WINS!", members[0].Handle)
+			} else {
+				winnerMsg = "SNAKE 1 WINS!"
+			}
 		}
-		f.Text(11, 24, scoreText, textStyle)
-		f.Text(11, 24+len(scoreText)+2, "★", infoStyle)
+
+		scoreText := fmt.Sprintf("S1: %04d  VS  S2: %04d", rm.score1, rm.score2)
+
+		f.Text(11, 21, centerText(winnerMsg, 38), textStyle)
+		f.Text(12, 21, centerText(scoreText, 38), textStyle)
 
 		f.Text(13, 25, "Press [SPACE] to Restart", subTextStyle)
 	}
