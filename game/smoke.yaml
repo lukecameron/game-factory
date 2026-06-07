@@ -58,8 +58,12 @@ steps:
   # Advance 1 more tick to trigger teleportation to Portal A (9,9) and emergence at (10,9)
   - advance: 150ms
   - shot: snake1_teleported
-  # Switch back to CLASSIC mode (press 'm')
+  # Switch to BOMB mode (press 'm')
   - seat: 0
+  - rune: 'm'
+  - advance: 150ms
+  - shot: mode_bomb_start
+  # Switch back to CLASSIC mode (press 'm')
   - rune: 'm'
   - advance: 150ms
   - shot: mode_classic_returned
@@ -150,6 +154,14 @@ steps:
   - key: left
   - advance: 150ms
   - shot: settings_speed_changed
+  # Move down to Audio setting
+  - rune: 's'
+  - advance: 150ms
+  - shot: settings_navigated_to_audio
+  # Toggle Audio setting to OFF
+  - key: left
+  - advance: 150ms
+  - shot: settings_audio_toggled
   # Close settings menu
   - rune: ' '
   - advance: 150ms

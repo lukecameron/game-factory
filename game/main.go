@@ -14,8 +14,10 @@ import (
 
 func main() { kit.Main(Game{}) }
 
-func triggerAudio(pattern string) {
-	_, _ = os.Stdout.Write([]byte(pattern))
+func (rm *room) triggerAudio(pattern string) {
+	if rm.audioEnabled {
+		_, _ = os.Stdout.Write([]byte(pattern))
+	}
 }
 
 // Game is the registry entry: metadata + a per-room behavior factory.
@@ -164,6 +166,7 @@ const (
 	ModeHazard
 	ModeMaze
 	ModePortal
+	ModeBomb
 )
 
 type Hazard struct {
@@ -243,6 +246,14 @@ type room struct {
 	snake2SkinIdx   int
 	gridDotsEnabled bool
 	startSpeedIdx   int
+	audioEnabled    bool
+
+	// Task 13 Bomb Mode
+	bombPos          Point
+	bombActive       bool
+	bombSpawnedAt    time.Time
+	bombExploding    bool
+	bombExplodedAt   time.Time
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -322,6 +333,8 @@ func (rm *room) getModeName() string {
 		return "MAZE"
 	case ModePortal:
 		return "PORTALS"
+	case ModeBomb:
+		return "BOMB"
 	default:
 		return "CLASSIC"
 	}
@@ -338,6 +351,9 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.snake2SkinIdx = 0
 	rm.gridDotsEnabled = true
 	rm.startSpeedIdx = 2 // 150ms
+	rm.audioEnabled = true
+	rm.bombActive = false
+	rm.bombExploding = false
 
 	speeds := []int{100, 120, 150, 180, 200}
 	rm.tickRate = time.Duration(speeds[rm.startSpeedIdx]) * time.Millisecond
@@ -503,7 +519,7 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 
 	// Switch Mode support
 	if in.Kind == kit.InputRune && (in.Rune == 'm' || in.Rune == 'M') {
-		rm.gameMode = (rm.gameMode + 1) % 4
+		rm.gameMode = (rm.gameMode + 1) % 5
 		rm.reset(r)
 	}
 
@@ -550,6 +566,31 @@ func (rm *room) OnWake(r kit.Room) {
 		}
 		if rm.powerUpActive && !rm.powerUpSpawnedAt.IsZero() {
 			rm.powerUpSpawnedAt = rm.powerUpSpawnedAt.Add(elapsedSinceLastWake)
+		}
+		if rm.bombActive && !rm.bombSpawnedAt.IsZero() {
+			rm.bombSpawnedAt = rm.bombSpawnedAt.Add(elapsedSinceLastWake)
+		}
+		if rm.bombExploding && !rm.bombExplodedAt.IsZero() {
+			rm.bombExplodedAt = rm.bombExplodedAt.Add(elapsedSinceLastWake)
+		}
+	}
+
+	// Update bomb countdown and explosion lifecycle
+	if rm.gameStarted && !rm.gameOver && !rm.settingsOpen && rm.gameMode == ModeBomb {
+		if rm.bombActive {
+			elapsed := now.Sub(rm.bombSpawnedAt)
+			if elapsed >= 5*time.Second {
+				rm.bombActive = false
+				rm.bombExploding = true
+				rm.bombExplodedAt = now
+				rm.triggerAudio("\a\a\a")
+			}
+		} else if rm.bombExploding {
+			elapsed := now.Sub(rm.bombExplodedAt)
+			if elapsed >= 1500*time.Millisecond {
+				rm.bombExploding = false
+				rm.spawnBomb(r)
+			}
 		}
 	}
 
@@ -695,6 +736,13 @@ func (rm *room) reset(r kit.Room) {
 	rm.portalA = Point{X: 9, Y: 9}
 	rm.portalB = Point{X: 29, Y: 9}
 
+	if rm.gameMode == ModeBomb {
+		rm.spawnBomb(r)
+	} else {
+		rm.bombActive = false
+		rm.bombExploding = false
+	}
+
 	// Initialize hazards
 	rm.initHazards()
 
@@ -783,6 +831,20 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 		// Check portals collision
 		if rm.gameMode == ModePortal && (p == rm.portalA || p == rm.portalB) {
 			continue
+		}
+
+		// Check bomb collision
+		if rm.gameMode == ModeBomb {
+			if rm.bombActive && p == rm.bombPos {
+				continue
+			}
+			if rm.bombExploding {
+				dx := p.X - rm.bombPos.X
+				dy := p.Y - rm.bombPos.Y
+				if dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 {
+					continue
+				}
+			}
 		}
 
 		// Avoid snake head range if requested
@@ -895,7 +957,7 @@ func (rm *room) tick(r kit.Room) {
 			if rm.powerUpActive {
 				target = rm.powerUpPos
 			}
-			dir, ok := rm.findShortestDir(rm.snake2[0], target, oppositeDir, p1FreezeActive, p2FreezeActive)
+			dir, ok := rm.findShortestDir(now, rm.snake2[0], target, oppositeDir, p1FreezeActive, p2FreezeActive)
 			if ok {
 				rm.entityDir2 = dir
 			}
@@ -984,7 +1046,40 @@ func (rm *room) tick(r kit.Room) {
 		}
 	}
 
-	if (c1Self || c1Obstacle || c1Maze || c1Hazard || c1Snake2) && !p1ShieldActive {
+	c1Bomb := false
+	c2Bomb := false
+	if rm.gameMode == ModeBomb {
+		if rm.bombActive {
+			if rm.snake1[0] == rm.bombPos {
+				rm.bombActive = false
+				rm.bombExploding = true
+				rm.bombExplodedAt = now
+				c1Bomb = true
+			}
+			if rm.snake2[0] == rm.bombPos {
+				rm.bombActive = false
+				rm.bombExploding = true
+				rm.bombExplodedAt = now
+				c2Bomb = true
+			}
+		}
+		if rm.bombExploding {
+			for dx := -1; dx <= 1; dx++ {
+				for dy := -1; dy <= 1; dy++ {
+					bx := (rm.bombPos.X + dx + 39) % 39
+					by := (rm.bombPos.Y + dy + 18) % 18
+					if rm.snake1[0].X == bx && rm.snake1[0].Y == by {
+						c1Bomb = true
+					}
+					if rm.snake2[0].X == bx && rm.snake2[0].Y == by {
+						c2Bomb = true
+					}
+				}
+			}
+		}
+	}
+
+	if (c1Self || c1Obstacle || c1Maze || c1Hazard || c1Snake2 || c1Bomb) && !p1ShieldActive {
 		rm.crashed1 = true
 	}
 
@@ -1015,7 +1110,7 @@ func (rm *room) tick(r kit.Room) {
 		}
 	}
 
-	if (c2Self || c2Obstacle || c2Maze || c2Hazard || c2Snake1) && !p2ShieldActive {
+	if (c2Self || c2Obstacle || c2Maze || c2Hazard || c2Snake1 || c2Bomb) && !p2ShieldActive {
 		rm.crashed2 = true
 	}
 
@@ -1023,7 +1118,7 @@ func (rm *room) tick(r kit.Room) {
 	if rm.crashed1 || rm.crashed2 {
 		rm.gameOver = true
 		rm.lastCollisionAt = r.Now()
-		triggerAudio("\a\a\a")
+		rm.triggerAudio("\a\a\a")
 		rm.savePersonalBests(r)
 
 		// Post results to the leaderboard
@@ -1068,7 +1163,7 @@ func (rm *room) tick(r kit.Room) {
 				rm.p1PowerUpType = rm.powerUpType
 				rm.p1PowerUpExpiry = now.Add(6 * time.Second)
 				rm.powerUpActive = false
-				triggerAudio("\a\a")
+				rm.triggerAudio("\a\a")
 
 				// Trigger score popup / text popup
 				palettes := getPalettes()
@@ -1086,7 +1181,7 @@ func (rm *room) tick(r kit.Room) {
 				rm.p2PowerUpType = rm.powerUpType
 				rm.p2PowerUpExpiry = now.Add(6 * time.Second)
 				rm.powerUpActive = false
-				triggerAudio("\a\a")
+				rm.triggerAudio("\a\a")
 
 				// Trigger score popup / text popup
 				palettes := getPalettes()
@@ -1123,7 +1218,7 @@ func (rm *room) tick(r kit.Room) {
 }
 
 func (rm *room) onFoodEaten(r kit.Room, foodPos Point, snakeNum int) {
-	triggerAudio("\a")
+	rm.triggerAudio("\a")
 	speeds := []int{100, 120, 150, 180, 200}
 	startSpeed := 150
 	if rm.startSpeedIdx >= 0 && rm.startSpeedIdx < len(speeds) {
@@ -1263,6 +1358,20 @@ func (rm *room) render(r kit.Room) {
 		occupied[rm.portalA] = true
 		occupied[rm.portalB] = true
 	}
+	if rm.gameMode == ModeBomb {
+		if rm.bombActive {
+			occupied[rm.bombPos] = true
+		}
+		if rm.bombExploding {
+			for dx := -1; dx <= 1; dx++ {
+				for dy := -1; dy <= 1; dy++ {
+					bx := (rm.bombPos.X + dx + 39) % 39
+					by := (rm.bombPos.Y + dy + 18) % 18
+					occupied[Point{X: bx, Y: by}] = true
+				}
+			}
+		}
+	}
 
 	p1ShieldActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "SHIELD"
 	p1FreezeActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "FREEZE"
@@ -1312,6 +1421,52 @@ func (rm *room) render(r kit.Room) {
 
 		f.SetWide(3+rm.portalA.Y, 1+rm.portalA.X*2, '◎', styleA)
 		f.SetWide(3+rm.portalB.Y, 1+rm.portalB.X*2, '◎', styleB)
+	}
+
+	// 3.7 Draw Bomb if in ModeBomb
+	if rm.gameMode == ModeBomb {
+		if rm.bombActive {
+			elapsed := now.Sub(rm.bombSpawnedAt)
+			secs := 5 - int(elapsed.Seconds())
+			if secs < 1 {
+				secs = 1
+			}
+			if secs > 5 {
+				secs = 5
+			}
+			bombColor := kit.RGB(0xff, 0x55, 0x00)
+			if secs <= 2 {
+				flash := (now.UnixNano() / 200000000) % 2
+				if flash == 0 {
+					bombColor = kit.RGB(0xff, 0xff, 0xff)
+				} else {
+					bombColor = kit.RGB(0xff, 0x00, 0x00)
+				}
+			}
+			bombStyle := kit.Style{FG: bombColor, Attr: kit.AttrBold}
+			f.Text(3+rm.bombPos.Y, 1+rm.bombPos.X*2, fmt.Sprintf("✹%d", secs), bombStyle)
+		} else if rm.bombExploding {
+			for dx := -1; dx <= 1; dx++ {
+				for dy := -1; dy <= 1; dy++ {
+					bx := (rm.bombPos.X + dx + 39) % 39
+					by := (rm.bombPos.Y + dy + 18) % 18
+					
+					var fireColor kit.Color
+					if dx == 0 && dy == 0 {
+						fireColor = kit.RGB(0xff, 0xff, 0xff)
+					} else {
+						flash := (now.UnixNano() / 100000000) % 2
+						if flash == 0 {
+							fireColor = kit.RGB(0xff, 0xa5, 0x00)
+						} else {
+							fireColor = kit.RGB(0xff, 0x00, 0x00)
+						}
+					}
+					fireStyle := kit.Style{FG: fireColor, Attr: kit.AttrBold}
+					f.SetWide(3+by, 1+bx*2, '░', fireStyle)
+				}
+			}
+		}
 	}
 
 	// 4. Draw Food (Pulsing glowing neon star, rotating/twinkling glyph)
@@ -1876,7 +2031,14 @@ func interpolateColor(c1, c2 kit.Color, t float64) kit.Color {
 	return kit.RGB(r, g, b)
 }
 
-func (rm *room) findShortestDir(start Point, target Point, oppositeDir Point, p1FreezeActive, p2FreezeActive bool) (Point, bool) {
+func (rm *room) spawnBomb(r kit.Room) {
+	rm.bombPos = rm.randomFreePoint(r, 0)
+	rm.bombActive = true
+	rm.bombExploding = false
+	rm.bombSpawnedAt = r.Now()
+}
+
+func (rm *room) findShortestDir(now time.Time, start Point, target Point, oppositeDir Point, p1FreezeActive, p2FreezeActive bool) (Point, bool) {
 	// BFS pathfinding queue
 	type QueueNode struct {
 		pos  Point
@@ -1920,6 +2082,27 @@ func (rm *room) findShortestDir(start Point, target Point, oppositeDir Point, p1
 					nextHY = hp.Pos.Y - hp.Dir.Y
 				}
 				if p.X == nextHX && p.Y == nextHY {
+					return false
+				}
+			}
+		}
+		if rm.gameMode == ModeBomb {
+			if rm.bombActive {
+				if p == rm.bombPos {
+					return false
+				}
+				if now.Sub(rm.bombSpawnedAt) >= 3*time.Second {
+					dx := p.X - rm.bombPos.X
+					dy := p.Y - rm.bombPos.Y
+					if dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 {
+						return false
+					}
+				}
+			}
+			if rm.bombExploding {
+				dx := p.X - rm.bombPos.X
+				dy := p.Y - rm.bombPos.Y
+				if dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 {
 					return false
 				}
 			}
@@ -2009,7 +2192,7 @@ func (rm *room) findShortestDir(start Point, target Point, oppositeDir Point, p1
 
 		if isSafeBFS(nextP, true, d) {
 			hasSafeMove = true
-			space := rm.countReachableSpace(nextP, p1FreezeActive, p2FreezeActive)
+			space := rm.countReachableSpace(now, nextP, p1FreezeActive, p2FreezeActive)
 			if space > bestSpace {
 				bestSpace = space
 				bestDir = d
@@ -2024,7 +2207,7 @@ func (rm *room) findShortestDir(start Point, target Point, oppositeDir Point, p1
 	return Point{X: 0, Y: 0}, false
 }
 
-func (rm *room) countReachableSpace(start Point, p1FreezeActive, p2FreezeActive bool) int {
+func (rm *room) countReachableSpace(now time.Time, start Point, p1FreezeActive, p2FreezeActive bool) int {
 	visited := make(map[Point]bool)
 	visited[start] = true
 	queue := []Point{start}
@@ -2062,6 +2245,27 @@ func (rm *room) countReachableSpace(start Point, p1FreezeActive, p2FreezeActive 
 					nextHY = hp.Pos.Y - hp.Dir.Y
 				}
 				if p.X == nextHX && p.Y == nextHY {
+					return false
+				}
+			}
+		}
+		if rm.gameMode == ModeBomb {
+			if rm.bombActive {
+				if p == rm.bombPos {
+					return false
+				}
+				if now.Sub(rm.bombSpawnedAt) >= 3*time.Second {
+					dx := p.X - rm.bombPos.X
+					dy := p.Y - rm.bombPos.Y
+					if dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 {
+						return false
+					}
+				}
+			}
+			if rm.bombExploding {
+				dx := p.X - rm.bombPos.X
+				dy := p.Y - rm.bombPos.Y
+				if dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 {
 					return false
 				}
 			}
@@ -2121,9 +2325,9 @@ func (rm *room) handleSettingsInput(r kit.Room, p kit.Player, in kit.Input) {
 	if in.Kind == kit.InputRune {
 		switch in.Rune {
 		case 'w', 'W':
-			rm.settingsCursor = (rm.settingsCursor - 1 + 5) % 5
+			rm.settingsCursor = (rm.settingsCursor - 1 + 6) % 6
 		case 's', 'S':
-			rm.settingsCursor = (rm.settingsCursor + 1) % 5
+			rm.settingsCursor = (rm.settingsCursor + 1) % 6
 		case 'a', 'A':
 			rm.changeSetting(skins, speeds, -1)
 		case 'd', 'D':
@@ -2132,9 +2336,9 @@ func (rm *room) handleSettingsInput(r kit.Room, p kit.Player, in kit.Input) {
 	} else if in.Kind == kit.InputKey {
 		switch in.Key {
 		case kit.KeyUp:
-			rm.settingsCursor = (rm.settingsCursor - 1 + 5) % 5
+			rm.settingsCursor = (rm.settingsCursor - 1 + 6) % 6
 		case kit.KeyDown:
-			rm.settingsCursor = (rm.settingsCursor + 1) % 5
+			rm.settingsCursor = (rm.settingsCursor + 1) % 6
 		case kit.KeyLeft:
 			rm.changeSetting(skins, speeds, -1)
 		case kit.KeyRight:
@@ -2156,7 +2360,9 @@ func (rm *room) changeSetting(skins []rune, speeds []int, dir int) {
 		if rm.score1 == 0 && rm.score2 == 0 {
 			rm.tickRate = time.Duration(speeds[rm.startSpeedIdx]) * time.Millisecond
 		}
-	case 4: // Close / Back
+	case 4: // Audio
+		rm.audioEnabled = !rm.audioEnabled
+	case 5: // Close / Back
 		// Left/Right on Close does nothing
 	}
 }
@@ -2236,13 +2442,20 @@ func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
 	speedVal := fmt.Sprintf("%dms", speeds[rm.startSpeedIdx])
 	renderOption(3, "Start Speed", speedVal, rm.settingsCursor == 3)
 
-	// Option 4: Close & Apply
-	r := 8 + 4
+	// Option 4: Audio
+	audioVal := "ON"
+	if !rm.audioEnabled {
+		audioVal = "OFF"
+	}
+	renderOption(4, "Audio Sound", audioVal, rm.settingsCursor == 4)
+
+	// Option 5: Close & Apply
+	r := 8 + 5
 	for c := 20; c <= 59; c++ {
 		f.SetRune(r, c, ' ', textStyle)
 	}
 	closeText := "Close & Apply"
-	if rm.settingsCursor == 4 {
+	if rm.settingsCursor == 5 {
 		closeText = "▶ Close & Apply ◀"
 		f.Text(r, 40-len(closeText)/2, closeText, selectedStyle)
 	} else {
@@ -2251,5 +2464,5 @@ func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
 	
 	// Instructions
 	instText := "Press [SPACE] to Close"
-	f.Text(14, 40-len(instText)/2, instText, dimStyle)
+	f.Text(15, 40-len(instText)/2, instText, dimStyle)
 }

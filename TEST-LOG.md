@@ -4,6 +4,20 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 13: Bomb Mode & Customizable Sound Settings Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Verification of WASM compilation and ABI/memory budget compliance (conformance check passed: 2.0 MiB peak memory, 2.263ms callback latency).
+  - Verification of ModeBomb transition and bomb spawning: Smoke test step 14 (`mode_bomb_start`) verifies entering Bomb Mode cycles correctly, rendering a ticking bomb with countdown `✹5` at a random free position.
+  - Verification of Settings Audio toggle: Smoke test steps 33 (`settings_navigated_to_audio`) and 34 (`settings_audio_toggled`) verify navigation down to the new Audio setting in the settings modal, successfully toggling it to `OFF`.
+  - Verification of sound silencing: Verified that disabling Audio prevents stdout writing, suppressing standard beeps.
+  - Verification of bot logic: Bot successfully runs BFS pathfinding and space maximization survival searches with bomb and blast-zone awareness, steering around impending hazards.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - Bomb Mode introduces a fantastic layer of tension: tracking the countdown seconds (especially the white/red flashing warning state in the last 2 seconds) keeps the player on their toes.
+  - Hitting a bomb or getting caught in the 3x3 blast zone registers a very crisp and immediate game-over transition.
+  - Sound toggling in settings is highly responsive, allowing a clean muted experience if terminal bells are too intrusive.
+
 ## [2026-06-07] Task 12: Retro Terminal Beep & Audio Cues Test
 - **Status**: Passed successfully.
 - **Coverage**:

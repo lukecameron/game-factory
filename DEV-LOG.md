@@ -4,6 +4,19 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 13: Bomb Mode & Customizable Sound Settings
+- **Status**: Completed.
+- **Details**:
+  - Implemented a customizable Audio setting (ON/OFF) in the Settings Menu to allow players to toggle retro beep sound cues.
+  - Refactored `triggerAudio(pattern string)` from a package-level function into a method of `room` that respects `rm.audioEnabled`.
+  - Added "BOMB" mode as the 5th game mode, featuring 5-second ticking time bombs.
+  - Placed ticking bombs on the playfield that count down (`✹5`, `✹4`, etc.) and flash white/red in the final 2 seconds before exploding.
+  - Implemented 3x3 wrapped blast zones that persist for 1.5 seconds, triggering a crash/game over upon contact.
+  - Added Shield power-up integration, protecting snakes from bomb and explosion impacts.
+  - Integrated portal-aware and bomb-avoiding BFS pathfinding and fallback survival room space search, guiding the AI Bot away from active bombs and their impending blast zones when the countdown reaches 2 seconds or less.
+  - Adjusted pause/resume and settings duration logic to freeze bomb countdowns and explosion timers correctly when gameplay is suspended.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 12: Retro Terminal Beep & Audio Cues
 - **Status**: Completed.
 - **Details**:

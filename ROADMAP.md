@@ -21,3 +21,7 @@ This file defines the tasks to be completed by the game factory. Each iteration,
 ## Future Ideas
 - [x] **Task 11**: Add a customizable settings menu (e.g. custom snake skins/characters, toggle grid dots, or custom start tick rates) accessible via the `S` or `s` key.
 - [x] **Task 12**: Implement retro terminal beep/audio cues using standard ASCII bell `\a` or distinct patterns for events like eating food, collecting power-ups, or crashing.
+- [x] **Task 13**: Implement customizable Audio Sound setting (ON/OFF) in the Settings Menu and implement the new "BOMB" mode featuring 5-second ticking time bombs, 3x3 blast zones, shield protection interactions, and portal-aware/bomb-avoiding AI Bot navigation.
+
+## Future Ideas
+- [ ] **Task 14**: Implement dynamic terminal particle explosions/debris effects that burst when snakes crash or eat food, and introduce customizable screen shake/flash effects.
