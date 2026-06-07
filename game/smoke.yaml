@@ -47,3 +47,16 @@ steps:
   - rune: 'm'
   - advance: 150ms
   - shot: mode_classic_returned
+
+  # --- Test Power-ups ---
+  # Steer Snake 2 up to avoid head-on collision
+  - seat: 1
+  - key: up
+  # Move Snake 1 right towards food X-coord (23)
+  - advance: 1950ms
+  - shot: snake1_aligned_with_food
+  # Steer Snake 1 down towards food Y-coord (15)
+  - seat: 0
+  - rune: 's'
+  - advance: 900ms
+  - shot: food_eaten_powerup_spawned

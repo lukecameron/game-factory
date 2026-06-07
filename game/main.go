@@ -202,6 +202,20 @@ type room struct {
 
 	gameMode GameMode
 	hazards  []Hazard
+
+	// Task 8 Power-ups
+	powerUpPos       Point
+	powerUpType      string // "SHIELD" or "FREEZE"
+	powerUpActive    bool
+	powerUpSpawnedAt time.Time
+
+	p1PowerUpType   string
+	p1PowerUpExpiry time.Time
+
+	p2PowerUpType   string
+	p2PowerUpExpiry time.Time
+
+	tickCount int
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -320,6 +334,13 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.lastCollisionAt = time.Time{}
 	rm.activePlayer = kit.Player{}
 	rm.activePlayerSet = false
+
+	rm.powerUpActive = false
+	rm.p1PowerUpType = ""
+	rm.p1PowerUpExpiry = time.Time{}
+	rm.p2PowerUpType = ""
+	rm.p2PowerUpExpiry = time.Time{}
+	rm.tickCount = 0
 
 	// Initialize hazards
 	rm.initHazards()
@@ -485,6 +506,13 @@ func (rm *room) reset(r kit.Room) {
 	rm.popups = []ScorePopup{}
 	rm.lastCollisionAt = time.Time{}
 
+	rm.powerUpActive = false
+	rm.p1PowerUpType = ""
+	rm.p1PowerUpExpiry = time.Time{}
+	rm.p2PowerUpType = ""
+	rm.p2PowerUpExpiry = time.Time{}
+	rm.tickCount = 0
+
 	// Initialize hazards
 	rm.initHazards()
 
@@ -549,6 +577,11 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 			continue
 		}
 
+		// Check power-up collision
+		if rm.powerUpActive && p == rm.powerUpPos {
+			continue
+		}
+
 		// Check patrolling hazards collision
 		inHazard := false
 		for _, hp := range rm.hazards {
@@ -607,6 +640,14 @@ func (rm *room) tick(r kit.Room) {
 	if len(rm.snake1) == 0 || len(rm.snake2) == 0 {
 		return
 	}
+	rm.tickCount++
+
+	now := r.Now()
+	p1ShieldActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "SHIELD"
+	p1FreezeActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "FREEZE"
+
+	p2ShieldActive := !rm.p2PowerUpExpiry.IsZero() && now.Before(rm.p2PowerUpExpiry) && rm.p2PowerUpType == "SHIELD"
+	p2FreezeActive := !rm.p2PowerUpExpiry.IsZero() && now.Before(rm.p2PowerUpExpiry) && rm.p2PowerUpType == "FREEZE"
 
 	// Save tail segment positions
 	tail1 := rm.snake1[len(rm.snake1)-1]
@@ -614,49 +655,61 @@ func (rm *room) tick(r kit.Room) {
 	oldHead1 := rm.snake1[0]
 	oldHead2 := rm.snake2[0]
 
-	// Move Snake 1 body
-	for i := len(rm.snake1) - 1; i > 0; i-- {
-		rm.snake1[i] = rm.snake1[i-1]
-	}
-	// Update Snake 1 head position
-	rm.snake1[0].X += rm.entityDir1.X
-	rm.snake1[0].Y += rm.entityDir1.Y
-
-	// Move Snake 2 body
-	for i := len(rm.snake2) - 1; i > 0; i-- {
-		rm.snake2[i] = rm.snake2[i-1]
-	}
-	// Update Snake 2 head position
-	rm.snake2[0].X += rm.entityDir2.X
-	rm.snake2[0].Y += rm.entityDir2.Y
-
-	// Wrap boundaries for Snake 1
-	if rm.snake1[0].X < 0 {
-		rm.snake1[0].X = 38
-	} else if rm.snake1[0].X > 38 {
-		rm.snake1[0].X = 0
-	}
-	if rm.snake1[0].Y < 0 {
-		rm.snake1[0].Y = 17
-	} else if rm.snake1[0].Y > 17 {
-		rm.snake1[0].Y = 0
+	move1 := true
+	if p2FreezeActive && rm.tickCount%2 == 0 {
+		move1 = false
 	}
 
-	// Wrap boundaries for Snake 2
-	if rm.snake2[0].X < 0 {
-		rm.snake2[0].X = 38
-	} else if rm.snake2[0].X > 38 {
-		rm.snake2[0].X = 0
-	}
-	if rm.snake2[0].Y < 0 {
-		rm.snake2[0].Y = 17
-	} else if rm.snake2[0].Y > 17 {
-		rm.snake2[0].Y = 0
+	move2 := true
+	if p1FreezeActive && rm.tickCount%2 == 0 {
+		move2 = false
 	}
 
-	// Update last moved directions
-	rm.lastMovedDir1 = rm.entityDir1
-	rm.lastMovedDir2 = rm.entityDir2
+	if move1 {
+		// Move Snake 1 body
+		for i := len(rm.snake1) - 1; i > 0; i-- {
+			rm.snake1[i] = rm.snake1[i-1]
+		}
+		// Update Snake 1 head position
+		rm.snake1[0].X += rm.entityDir1.X
+		rm.snake1[0].Y += rm.entityDir1.Y
+
+		// Wrap boundaries for Snake 1
+		if rm.snake1[0].X < 0 {
+			rm.snake1[0].X = 38
+		} else if rm.snake1[0].X > 38 {
+			rm.snake1[0].X = 0
+		}
+		if rm.snake1[0].Y < 0 {
+			rm.snake1[0].Y = 17
+		} else if rm.snake1[0].Y > 17 {
+			rm.snake1[0].Y = 0
+		}
+		rm.lastMovedDir1 = rm.entityDir1
+	}
+
+	if move2 {
+		// Move Snake 2 body
+		for i := len(rm.snake2) - 1; i > 0; i-- {
+			rm.snake2[i] = rm.snake2[i-1]
+		}
+		// Update Snake 2 head position
+		rm.snake2[0].X += rm.entityDir2.X
+		rm.snake2[0].Y += rm.entityDir2.Y
+
+		// Wrap boundaries for Snake 2
+		if rm.snake2[0].X < 0 {
+			rm.snake2[0].X = 38
+		} else if rm.snake2[0].X > 38 {
+			rm.snake2[0].X = 0
+		}
+		if rm.snake2[0].Y < 0 {
+			rm.snake2[0].Y = 17
+		} else if rm.snake2[0].Y > 17 {
+			rm.snake2[0].Y = 0
+		}
+		rm.lastMovedDir2 = rm.entityDir2
+	}
 
 	// Store old hazard positions for swap collision check
 	oldHazards := make([]Point, len(rm.hazards))
@@ -664,21 +717,24 @@ func (rm *room) tick(r kit.Room) {
 		oldHazards[i] = h.Pos
 	}
 
-	// Update Patrolling Hazards
-	for i := range rm.hazards {
-		h := &rm.hazards[i]
-		nextX := h.Pos.X + h.Dir.X
-		nextY := h.Pos.Y + h.Dir.Y
+	// Update Patrolling Hazards (frozen if freeze is active)
+	hazardsMove := !p1FreezeActive && !p2FreezeActive
+	if hazardsMove {
+		for i := range rm.hazards {
+			h := &rm.hazards[i]
+			nextX := h.Pos.X + h.Dir.X
+			nextY := h.Pos.Y + h.Dir.Y
 
-		// Check if out of bounds
-		if nextX < h.MinX || nextX > h.MaxX || nextY < h.MinY || nextY > h.MaxY {
-			h.Dir.X = -h.Dir.X
-			h.Dir.Y = -h.Dir.Y
-			nextX = h.Pos.X + h.Dir.X
-			nextY = h.Pos.Y + h.Dir.Y
+			// Check if out of bounds
+			if nextX < h.MinX || nextX > h.MaxX || nextY < h.MinY || nextY > h.MaxY {
+				h.Dir.X = -h.Dir.X
+				h.Dir.Y = -h.Dir.Y
+				nextX = h.Pos.X + h.Dir.X
+				nextY = h.Pos.Y + h.Dir.Y
+			}
+			h.Pos.X = nextX
+			h.Pos.Y = nextY
 		}
-		h.Pos.X = nextX
-		h.Pos.Y = nextY
 	}
 
 	// Check collisions for Snake 1
@@ -708,7 +764,7 @@ func (rm *room) tick(r kit.Room) {
 		}
 	}
 
-	if c1Self || c1Obstacle || c1Maze || c1Hazard || c1Snake2 {
+	if (c1Self || c1Obstacle || c1Maze || c1Hazard || c1Snake2) && !p1ShieldActive {
 		rm.crashed1 = true
 	}
 
@@ -739,7 +795,7 @@ func (rm *room) tick(r kit.Room) {
 		}
 	}
 
-	if c2Self || c2Obstacle || c2Maze || c2Hazard || c2Snake1 {
+	if (c2Self || c2Obstacle || c2Maze || c2Hazard || c2Snake1) && !p2ShieldActive {
 		rm.crashed2 = true
 	}
 
@@ -777,6 +833,50 @@ func (rm *room) tick(r kit.Room) {
 			})
 		}
 		return
+	}
+
+	// Check power-up collision
+	if rm.powerUpActive {
+		// Check if 8 seconds expired
+		if now.Sub(rm.powerUpSpawnedAt) >= 8*time.Second {
+			rm.powerUpActive = false
+		} else {
+			// Check Snake 1 head
+			if rm.snake1[0] == rm.powerUpPos {
+				rm.p1PowerUpType = rm.powerUpType
+				rm.p1PowerUpExpiry = now.Add(6 * time.Second)
+				rm.powerUpActive = false
+
+				// Trigger score popup / text popup
+				palettes := getPalettes()
+				theme := palettes[rm.themeIndex]
+				popupText := "+" + rm.powerUpType
+				rm.popups = append(rm.popups, ScorePopup{
+					X:         rm.powerUpPos.X,
+					Y:         rm.powerUpPos.Y,
+					Text:      popupText,
+					Color:     theme.SnakeHead,
+					CreatedAt: now,
+				})
+			} else if rm.snake2[0] == rm.powerUpPos {
+				// Check Snake 2 head
+				rm.p2PowerUpType = rm.powerUpType
+				rm.p2PowerUpExpiry = now.Add(6 * time.Second)
+				rm.powerUpActive = false
+
+				// Trigger score popup / text popup
+				palettes := getPalettes()
+				theme := palettes[rm.themeIndex]
+				popupText := "+" + rm.powerUpType
+				rm.popups = append(rm.popups, ScorePopup{
+					X:         rm.powerUpPos.X,
+					Y:         rm.powerUpPos.Y,
+					Text:      popupText,
+					Color:     theme.Snake2Head,
+					CreatedAt: now,
+				})
+			}
+		}
 	}
 
 	// Check food-collision for Snake 1
@@ -824,6 +924,21 @@ func (rm *room) onFoodEaten(r kit.Room, foodPos Point, snakeNum int) {
 
 	rm.food = rm.randomFreePoint(r, 0)
 	rm.obstacles = append(rm.obstacles, rm.randomFreePoint(r, 4))
+
+	// Spawn a power-up if not already active
+	if !rm.powerUpActive {
+		roll := r.Rand().Intn(100)
+		if roll < 100 {
+			pType := "SHIELD"
+			if r.Rand().Intn(2) == 0 {
+				pType = "FREEZE"
+			}
+			rm.powerUpPos = rm.randomFreePoint(r, 2)
+			rm.powerUpType = pType
+			rm.powerUpActive = true
+			rm.powerUpSpawnedAt = r.Now()
+		}
+	}
 }
 
 func centerText(text string, width int) string {
@@ -911,6 +1026,15 @@ func (rm *room) render(r kit.Room) {
 	for _, op := range rm.obstacles {
 		occupied[op] = true
 	}
+	if rm.powerUpActive {
+		occupied[rm.powerUpPos] = true
+	}
+
+	p1ShieldActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "SHIELD"
+	p1FreezeActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "FREEZE"
+
+	p2ShieldActive := !rm.p2PowerUpExpiry.IsZero() && now.Before(rm.p2PowerUpExpiry) && rm.p2PowerUpType == "SHIELD"
+	p2FreezeActive := !rm.p2PowerUpExpiry.IsZero() && now.Before(rm.p2PowerUpExpiry) && rm.p2PowerUpType == "FREEZE"
 
 	// 3. Draw Grid Dots
 	for y := 0; y < 18; y++ {
@@ -954,6 +1078,22 @@ func (rm *room) render(r kit.Room) {
 	foodGlyphIdx := (elapsed.Milliseconds() / 250) % int64(len(foodGlyphs))
 	foodGlyph := foodGlyphs[foodGlyphIdx]
 	f.SetWide(3+rm.food.Y, 1+rm.food.X*2, foodGlyph, foodStyle)
+
+	// 4.5 Draw Power-Up on field if active
+	if rm.powerUpActive {
+		var powerUpStyle kit.Style
+		var powerUpGlyph rune
+		if rm.powerUpType == "SHIELD" {
+			shieldPulse := 0.75 + 0.25*math.Sin(float64(elapsed.Milliseconds())*0.01)
+			powerUpStyle = kit.Style{FG: brightenColor(kit.RGB(0xff, 0xd7, 0x00), shieldPulse), Attr: kit.AttrBold}
+			powerUpGlyph = '🛡'
+		} else {
+			freezePulse := 0.75 + 0.25*math.Sin(float64(elapsed.Milliseconds())*0.01)
+			powerUpStyle = kit.Style{FG: brightenColor(kit.RGB(0x00, 0xff, 0xff), freezePulse), Attr: kit.AttrBold}
+			powerUpGlyph = '❄'
+		}
+		f.SetWide(3+rm.powerUpPos.Y, 1+rm.powerUpPos.X*2, powerUpGlyph, powerUpStyle)
+	}
 
 	// 5. Draw Obstacles (Neon triangles with warning flash when head is close)
 	for _, op := range rm.obstacles {
@@ -1066,16 +1206,23 @@ func (rm *room) render(r kit.Room) {
 	for i := n1 - 1; i >= 0; i-- {
 		p := rm.snake1[i]
 		var segmentStyle kit.Style
-		if i == 0 {
-			headPulse := 0.85 + 0.15*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds())*0.006)
-			segmentStyle = kit.Style{FG: brightenColor(theme.SnakeHead, headPulse)}
+		if p1ShieldActive {
+			shieldPulse := 0.75 + 0.25*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds()-int64(i*50))*0.01)
+			segmentStyle = kit.Style{FG: brightenColor(kit.RGB(0xff, 0xd7, 0x00), shieldPulse), Attr: kit.AttrBold}
+		} else if p2FreezeActive {
+			segmentStyle = kit.Style{FG: interpolateColor(theme.SnakeHead, kit.RGB(0x00, 0xbf, 0xff), 0.5), Attr: kit.AttrDim}
 		} else {
-			ratio := float64(i) / float64(n1-1)
-			shiftedRatio := ratio + timeShift
-			if shiftedRatio > 1.0 {
-				shiftedRatio -= 1.0
+			if i == 0 {
+				headPulse := 0.85 + 0.15*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds())*0.006)
+				segmentStyle = kit.Style{FG: brightenColor(theme.SnakeHead, headPulse)}
+			} else {
+				ratio := float64(i) / float64(n1-1)
+				shiftedRatio := ratio + timeShift
+				if shiftedRatio > 1.0 {
+					shiftedRatio -= 1.0
+				}
+				segmentStyle = kit.Style{FG: interpolateColor(theme.SnakeHead, theme.SnakeTail, shiftedRatio)}
 			}
-			segmentStyle = kit.Style{FG: interpolateColor(theme.SnakeHead, theme.SnakeTail, shiftedRatio)}
 		}
 		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
 	}
@@ -1085,16 +1232,23 @@ func (rm *room) render(r kit.Room) {
 	for i := n2 - 1; i >= 0; i-- {
 		p := rm.snake2[i]
 		var segmentStyle kit.Style
-		if i == 0 {
-			headPulse := 0.85 + 0.15*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds())*0.006)
-			segmentStyle = kit.Style{FG: brightenColor(theme.Snake2Head, headPulse)}
+		if p2ShieldActive {
+			shieldPulse := 0.75 + 0.25*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds()-int64(i*50))*0.01)
+			segmentStyle = kit.Style{FG: brightenColor(kit.RGB(0xff, 0xd7, 0x00), shieldPulse), Attr: kit.AttrBold}
+		} else if p1FreezeActive {
+			segmentStyle = kit.Style{FG: interpolateColor(theme.Snake2Head, kit.RGB(0x00, 0xbf, 0xff), 0.5), Attr: kit.AttrDim}
 		} else {
-			ratio := float64(i) / float64(n2-1)
-			shiftedRatio := ratio + timeShift
-			if shiftedRatio > 1.0 {
-				shiftedRatio -= 1.0
+			if i == 0 {
+				headPulse := 0.85 + 0.15*math.Sin(float64(now.Sub(rm.startedAt).Milliseconds())*0.006)
+				segmentStyle = kit.Style{FG: brightenColor(theme.Snake2Head, headPulse)}
+			} else {
+				ratio := float64(i) / float64(n2-1)
+				shiftedRatio := ratio + timeShift
+				if shiftedRatio > 1.0 {
+					shiftedRatio -= 1.0
+				}
+				segmentStyle = kit.Style{FG: interpolateColor(theme.Snake2Head, theme.Snake2Tail, shiftedRatio)}
 			}
-			segmentStyle = kit.Style{FG: interpolateColor(theme.Snake2Head, theme.Snake2Tail, shiftedRatio)}
 		}
 		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
 	}
@@ -1124,10 +1278,28 @@ func (rm *room) render(r kit.Room) {
 
 	// 7.5 Draw Divider on row 21 with Mode and player text
 	var dividerText string
+	p1Status := ""
+	if p1ShieldActive {
+		remSec := int(math.Ceil(rm.p1PowerUpExpiry.Sub(now).Seconds()))
+		p1Status = fmt.Sprintf(" [🛡 %ds]", remSec)
+	} else if p1FreezeActive {
+		remSec := int(math.Ceil(rm.p1PowerUpExpiry.Sub(now).Seconds()))
+		p1Status = fmt.Sprintf(" [❄ %ds]", remSec)
+	}
+
+	p2Status := ""
+	if p2ShieldActive {
+		remSec := int(math.Ceil(rm.p2PowerUpExpiry.Sub(now).Seconds()))
+		p2Status = fmt.Sprintf(" [🛡 %ds]", remSec)
+	} else if p2FreezeActive {
+		remSec := int(math.Ceil(rm.p2PowerUpExpiry.Sub(now).Seconds()))
+		p2Status = fmt.Sprintf(" [❄ %ds]", remSec)
+	}
+
 	if len(members) >= 2 {
-		dividerText = fmt.Sprintf(" MODE: %s │ P1: %s VS P2: %s ", rm.getModeName(), members[0].Handle, members[1].Handle)
+		dividerText = fmt.Sprintf(" MODE: %s │ P1: %s%s VS P2: %s%s ", rm.getModeName(), members[0].Handle, p1Status, members[1].Handle, p2Status)
 	} else {
-		dividerText = fmt.Sprintf(" MODE: %s │ DUAL CONTROL CO-OP ", rm.getModeName())
+		dividerText = fmt.Sprintf(" MODE: %s │ DUAL CONTROL CO-OP %s%s ", rm.getModeName(), p1Status, p2Status)
 	}
 	rm.drawDividerWithText(f, 21, dividerText, now)
 
