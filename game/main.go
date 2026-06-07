@@ -44,8 +44,9 @@ type room struct {
 	gameStarted bool
 	gameOver    bool
 
-	entityPos Point
-	entityDir Point
+	snake        []Point
+	entityDir    Point
+	lastMovedDir Point
 
 	startedAt time.Time
 }
@@ -55,8 +56,14 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.lastTick = r.Now()
 	rm.startedAt = r.Now()
 	rm.tickRate = 150 * time.Millisecond
-	rm.entityPos = Point{X: 19, Y: 9}
+	rm.snake = []Point{
+		{X: 19, Y: 9},
+		{X: 18, Y: 9},
+		{X: 17, Y: 9},
+		{X: 16, Y: 9},
+	}
 	rm.entityDir = Point{X: 1, Y: 0}
+	rm.lastMovedDir = Point{X: 1, Y: 0}
 	rm.gameStarted = true
 }
 
@@ -81,19 +88,19 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 
 	switch action {
 	case kit.ActUp:
-		if rm.entityDir.Y != 1 {
+		if rm.lastMovedDir.Y != 1 {
 			rm.entityDir = Point{X: 0, Y: -1}
 		}
 	case kit.ActDown:
-		if rm.entityDir.Y != -1 {
+		if rm.lastMovedDir.Y != -1 {
 			rm.entityDir = Point{X: 0, Y: 1}
 		}
 	case kit.ActLeft:
-		if rm.entityDir.X != 1 {
+		if rm.lastMovedDir.X != 1 {
 			rm.entityDir = Point{X: -1, Y: 0}
 		}
 	case kit.ActRight:
-		if rm.entityDir.X != -1 {
+		if rm.lastMovedDir.X != -1 {
 			rm.entityDir = Point{X: 1, Y: 0}
 		}
 	case kit.ActConfirm:
@@ -123,21 +130,33 @@ func (rm *room) OnWake(r kit.Room) {
 }
 
 func (rm *room) tick() {
-	// Move the entity
-	rm.entityPos.X += rm.entityDir.X
-	rm.entityPos.Y += rm.entityDir.Y
+	if len(rm.snake) == 0 {
+		return
+	}
+
+	// Move the body: shift all elements down
+	for i := len(rm.snake) - 1; i > 0; i-- {
+		rm.snake[i] = rm.snake[i-1]
+	}
+
+	// Update the head position
+	rm.snake[0].X += rm.entityDir.X
+	rm.snake[0].Y += rm.entityDir.Y
 
 	// Wrap around boundaries (Playfield width is 39 grid units, height is 18)
-	if rm.entityPos.X < 0 {
-		rm.entityPos.X = 38
-	} else if rm.entityPos.X > 38 {
-		rm.entityPos.X = 0
+	if rm.snake[0].X < 0 {
+		rm.snake[0].X = 38
+	} else if rm.snake[0].X > 38 {
+		rm.snake[0].X = 0
 	}
-	if rm.entityPos.Y < 0 {
-		rm.entityPos.Y = 17
-	} else if rm.entityPos.Y > 17 {
-		rm.entityPos.Y = 0
+	if rm.snake[0].Y < 0 {
+		rm.snake[0].Y = 17
+	} else if rm.snake[0].Y > 17 {
+		rm.snake[0].Y = 0
 	}
+
+	// Update last moved direction
+	rm.lastMovedDir = rm.entityDir
 }
 
 func (rm *room) render(r kit.Room) {
@@ -152,7 +171,6 @@ func (rm *room) render(r kit.Room) {
 	headerStyle := kit.Style{FG: kit.RGB(0x00, 0xff, 0xff), Attr: kit.AttrBold}     // Aqua/Cyan
 	valueStyle := kit.Style{FG: kit.RGB(0xff, 0xff, 0xff)}                          // White
 	dotStyle := kit.Style{FG: kit.RGB(0x44, 0x44, 0x44)}                            // Dark Gray
-	entityStyle := kit.Style{FG: kit.RGB(0x39, 0xff, 0x14)}                         // Lime Green
 	footerStyle := kit.Style{FG: kit.RGB(0x00, 0xe5, 0xff)}
 	keyStyle := kit.Style{FG: kit.RGB(0xff, 0x00, 0x7f), Attr: kit.AttrBold}        // Neon Pink
 
@@ -185,18 +203,40 @@ func (rm *room) render(r kit.Room) {
 	}
 	f.Text(1, 62, "STATUS: "+statusText, statusStyle)
 
+	// Create lookup for snake coordinates to skip drawing grid dots
+	inSnake := make(map[Point]bool)
+	for _, p := range rm.snake {
+		inSnake[p] = true
+	}
+
 	// 3. Draw Grid Dots
 	for y := 0; y < 18; y++ {
 		for x := 0; x < 39; x++ {
-			if x == rm.entityPos.X && y == rm.entityPos.Y {
+			if inSnake[Point{X: x, Y: y}] {
 				continue
 			}
 			f.SetRune(3+y, 1+x*2, '·', dotStyle)
 		}
 	}
 
-	// 4. Draw Entity (Moving block)
-	f.SetWide(3+rm.entityPos.Y, 1+rm.entityPos.X*2, '█', entityStyle)
+	// 4. Draw Snake (Neon gradient from Lime Green head to Cyan tail)
+	n := len(rm.snake)
+	for i := n - 1; i >= 0; i-- {
+		p := rm.snake[i]
+		var segmentStyle kit.Style
+		if i == 0 {
+			// Head: Bright Lime Green
+			segmentStyle = kit.Style{FG: kit.RGB(0x39, 0xff, 0x14)}
+		} else {
+			// Gradient color: fade from Lime Green (0x39, 0xff, 0x14) to Cyan (0x00, 0xe5, 0xff)
+			ratio := float64(i) / float64(n-1)
+			rVal := uint8(0x39 - int(ratio*float64(0x39)))
+			gVal := uint8(0xff - int(ratio*float64(0xff-0xe5)))
+			bVal := uint8(0x14 + int(ratio*float64(0xff-0x14)))
+			segmentStyle = kit.Style{FG: kit.RGB(rVal, gVal, bVal)}
+		}
+		f.SetWide(3+p.Y, 1+p.X*2, '█', segmentStyle)
+	}
 
 	// 5. Draw Footer Content
 	f.Text(22, 4, "CONTROLS:", footerStyle)

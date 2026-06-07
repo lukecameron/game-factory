@@ -6,9 +6,23 @@ steps:
   - shot: start
   - advance: 450ms
   - shot: moved_right
+  # Test 180-degree safety lock: try to turn left immediately (while moving right)
+  - key: left
+  - advance: 150ms
+  - shot: should_not_turn_left
+  # Steer down
   - key: down
   - advance: 300ms
   - shot: moved_down
+  # Test 180-degree safety lock: try to turn up immediately (while moving down)
+  - key: up
+  - advance: 150ms
+  - shot: should_not_turn_up
+  # Steer left
+  - key: left
+  - advance: 300ms
+  - shot: moved_left
+  # Pause game
   - rune: ' '
   - advance: 300ms
   - shot: paused
