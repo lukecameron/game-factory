@@ -16,10 +16,11 @@ type Game struct{}
 func (Game) Meta() kit.GameMeta {
 	return kit.GameMeta{
 		Slug:             "game",
-		Name:             "game",
-		ShortDescription: "Describe your game in one line.",
+		Name:             "Neon Snake",
+		ShortDescription: "A retro-inspired premium Neon Snake game built for TUI.",
 		MinPlayers:       1,
 		MaxPlayers:       4,
+		HeartbeatMS:      50, // 20 ticks per second
 	}
 }
 
@@ -27,26 +28,76 @@ func (Game) NewRoom(cfg kit.RoomConfig, svc kit.Services) kit.Handler {
 	return &room{}
 }
 
+type Point struct {
+	X, Y int
+}
+
 // room is one live room. ALL state lives here (and only here) — the host can
 // snapshot and restore it, so key anything durable by Player.AccountID.
 type room struct {
 	kit.Base
-	presses  int
-	deadline time.Time // a wake-driven one-shot: see OnWake
+	frame       *kit.Frame
+	lastTick    time.Time
+	tickRate    time.Duration
+	score       int
+	highScore   int
+	gameStarted bool
+	gameOver    bool
+
+	entityPos Point
+	entityDir Point
+
+	startedAt time.Time
 }
 
 func (rm *room) OnStart(r kit.Room) {
 	r.SetInputContext(kit.CtxNav)
+	rm.lastTick = r.Now()
+	rm.startedAt = r.Now()
+	rm.tickRate = 150 * time.Millisecond
+	rm.entityPos = Point{X: 19, Y: 9}
+	rm.entityDir = Point{X: 1, Y: 0}
+	rm.gameStarted = true
 }
 
 func (rm *room) OnJoin(r kit.Room, p kit.Player) { rm.render(r) }
 
 func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
-	switch kit.Resolve(in, kit.CtxNav) {
+	action := kit.Resolve(in, kit.CtxNav)
+
+	// Custom support for WASD controls
+	if in.Kind == kit.InputRune {
+		switch in.Rune {
+		case 'w', 'W':
+			action = kit.ActUp
+		case 's', 'S':
+			action = kit.ActDown
+		case 'a', 'A':
+			action = kit.ActLeft
+		case 'd', 'D':
+			action = kit.ActRight
+		}
+	}
+
+	switch action {
+	case kit.ActUp:
+		if rm.entityDir.Y != 1 {
+			rm.entityDir = Point{X: 0, Y: -1}
+		}
+	case kit.ActDown:
+		if rm.entityDir.Y != -1 {
+			rm.entityDir = Point{X: 0, Y: 1}
+		}
+	case kit.ActLeft:
+		if rm.entityDir.X != 1 {
+			rm.entityDir = Point{X: -1, Y: 0}
+		}
+	case kit.ActRight:
+		if rm.entityDir.X != -1 {
+			rm.entityDir = Point{X: 1, Y: 0}
+		}
 	case kit.ActConfirm:
-		rm.presses++
-		// One-shot timer, the wake way: store a deadline, check it in OnWake.
-		rm.deadline = r.Now().Add(2 * time.Second)
+		rm.gameStarted = !rm.gameStarted
 	}
 	rm.render(r)
 }
@@ -54,27 +105,155 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 // OnWake is the host heartbeat — the ONLY time your code runs without input.
 // Drive every animation, countdown, and timeout from CallContext time here.
 func (rm *room) OnWake(r kit.Room) {
-	if !rm.deadline.IsZero() && r.Now().After(rm.deadline) {
-		rm.deadline = time.Time{}
-		rm.presses = 0 // the timeout fired: reset
+	now := r.Now()
+	if rm.lastTick.IsZero() {
+		rm.lastTick = now
 	}
+	if rm.startedAt.IsZero() {
+		rm.startedAt = now
+	}
+
+	// Advance game state based on tickRate
+	if rm.gameStarted && !rm.gameOver && now.Sub(rm.lastTick) >= rm.tickRate {
+		rm.lastTick = now
+		rm.tick()
+	}
+
 	rm.render(r)
 }
 
-func (rm *room) render(r kit.Room) {
-	f := kit.NewFrame() // frames are POINTERS, always (see ABI.md §6)
-	title := kit.Style{FG: kit.Cyan, Attr: kit.AttrBold}
-	dim := kit.Style{FG: kit.DimGray}
+func (rm *room) tick() {
+	// Move the entity
+	rm.entityPos.X += rm.entityDir.X
+	rm.entityPos.Y += rm.entityDir.Y
 
-	f.Text(2, 4, "*** game ***", title)
-	f.Text(10, 4, fmt.Sprintf("SPACE pressed %d times", rm.presses), kit.Style{FG: kit.White})
-	if !rm.deadline.IsZero() {
-		left := rm.deadline.Sub(r.Now()).Round(100 * time.Millisecond)
-		f.Text(12, 4, fmt.Sprintf("resetting in %s...", left), kit.Style{FG: kit.Yellow})
+	// Wrap around boundaries (Playfield width is 39 grid units, height is 18)
+	if rm.entityPos.X < 0 {
+		rm.entityPos.X = 38
+	} else if rm.entityPos.X > 38 {
+		rm.entityPos.X = 0
 	}
-	f.Text(kit.Rows-1, 2, "SPACE press   Esc leave", dim)
+	if rm.entityPos.Y < 0 {
+		rm.entityPos.Y = 17
+	} else if rm.entityPos.Y > 17 {
+		rm.entityPos.Y = 0
+	}
+}
 
+func (rm *room) render(r kit.Room) {
+	if rm.frame == nil {
+		rm.frame = kit.NewFrame()
+	}
+	f := rm.frame
+	f.Clear()
+
+	// Styles
+	borderStyle := kit.Style{FG: kit.RGB(0x8a, 0x2b, 0xe2)}                         // Neon Violet
+	headerStyle := kit.Style{FG: kit.RGB(0x00, 0xff, 0xff), Attr: kit.AttrBold}     // Aqua/Cyan
+	valueStyle := kit.Style{FG: kit.RGB(0xff, 0xff, 0xff)}                          // White
+	dotStyle := kit.Style{FG: kit.RGB(0x44, 0x44, 0x44)}                            // Dark Gray
+	entityStyle := kit.Style{FG: kit.RGB(0x39, 0xff, 0x14)}                         // Lime Green
+	footerStyle := kit.Style{FG: kit.RGB(0x00, 0xe5, 0xff)}
+	keyStyle := kit.Style{FG: kit.RGB(0xff, 0x00, 0x7f), Attr: kit.AttrBold}        // Neon Pink
+
+	// 1. Draw Border
+	rm.drawBorder(f, borderStyle)
+
+	// 2. Draw Header Content
+	f.Text(1, 3, "▲▼ NEON SNAKE ▲▼", headerStyle)
+	f.Text(1, 30, "SCORE:", headerStyle)
+	f.Text(1, 37, fmt.Sprintf("%04d", rm.score), valueStyle)
+
+	f.Text(1, 46, "HIGH:", headerStyle)
+	f.Text(1, 52, fmt.Sprintf("%04d", rm.highScore), valueStyle)
+
+	// Pulsing status effect
+	var statusText string
+	var statusStyle kit.Style
+	if !rm.gameStarted {
+		statusText = "PAUSED"
+		statusStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0x00), Attr: kit.AttrBold} // Yellow
+	} else {
+		statusText = "PLAYING"
+		elapsed := r.Now().Sub(rm.startedAt)
+		pulse := (elapsed.Milliseconds() / 150) % 10
+		if pulse < 5 {
+			statusStyle = kit.Style{FG: kit.RGB(0xff, 0x00, 0x7f), Attr: kit.AttrBold} // Bright Pink
+		} else {
+			statusStyle = kit.Style{FG: kit.RGB(0xaa, 0x00, 0x55)} // Darker Pink
+		}
+	}
+	f.Text(1, 62, "STATUS: "+statusText, statusStyle)
+
+	// 3. Draw Grid Dots
+	for y := 0; y < 18; y++ {
+		for x := 0; x < 39; x++ {
+			if x == rm.entityPos.X && y == rm.entityPos.Y {
+				continue
+			}
+			f.SetRune(3+y, 1+x*2, '·', dotStyle)
+		}
+	}
+
+	// 4. Draw Entity (Moving block)
+	f.SetWide(3+rm.entityPos.Y, 1+rm.entityPos.X*2, '█', entityStyle)
+
+	// 5. Draw Footer Content
+	f.Text(22, 4, "CONTROLS:", footerStyle)
+	col := 15
+	col = f.Text(22, col, " [", footerStyle)
+	col = f.Text(22, col, "WASD", keyStyle)
+	col = f.Text(22, col, "/Arrows] Move", footerStyle)
+
+	col = f.Text(22, 45, " [", footerStyle)
+	col = f.Text(22, col, "Space", keyStyle)
+	col = f.Text(22, col, "] Pause", footerStyle)
+
+	col = f.Text(22, 63, " [", footerStyle)
+	col = f.Text(22, col, "Esc", keyStyle)
+	col = f.Text(22, col, "] Quit", footerStyle)
+
+	// Send viewport to each member
 	for _, p := range r.Members() {
 		r.Send(p, f)
+	}
+}
+
+func (rm *room) drawBorder(f *kit.Frame, borderStyle kit.Style) {
+	// Top border
+	f.SetRune(0, 0, '╔', borderStyle)
+	for c := 1; c < 79; c++ {
+		f.SetRune(0, c, '═', borderStyle)
+	}
+	f.SetRune(0, 79, '╗', borderStyle)
+
+	// Row 2 divider
+	f.SetRune(2, 0, '╠', borderStyle)
+	for c := 1; c < 79; c++ {
+		f.SetRune(2, c, '═', borderStyle)
+	}
+	f.SetRune(2, 79, '╣', borderStyle)
+
+	// Row 21 divider
+	f.SetRune(21, 0, '╠', borderStyle)
+	for c := 1; c < 79; c++ {
+		f.SetRune(21, c, '═', borderStyle)
+	}
+	f.SetRune(21, 79, '╣', borderStyle)
+
+	// Bottom border
+	f.SetRune(23, 0, '╚', borderStyle)
+	for c := 1; c < 79; c++ {
+		f.SetRune(23, c, '═', borderStyle)
+	}
+	f.SetRune(23, 79, '╝', borderStyle)
+
+	// Vertical borders
+	for r := 1; r < 23; r++ {
+		if r == 2 || r == 21 {
+			continue
+		}
+		f.SetRune(r, 0, '║', borderStyle)
+		f.SetRune(r, 79, '║', borderStyle)
 	}
 }

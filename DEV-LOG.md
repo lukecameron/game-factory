@@ -4,6 +4,15 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 1: Core Loop and TUI Board Layout
+- **Status**: Completed.
+- **Details**:
+  - Implemented a 39x18 game playfield inside the 80x24 TUI constraints in [main.go](file:///home/luke/dev/game-factory/game/main.go).
+  - Used double-width grid mapping (2 columns per grid unit) to handle terminal cell aspect ratio (2:1).
+  - Implemented the core game loop in `OnWake` using comparisons against `r.Now()` (150ms tick rate).
+  - Built a truecolor neon visual layout with a contiguous double-line border, pulsing status header, and dot grid overlay.
+  - Added support for WASD steering controls alongside standard arrow keys in `OnInput`.
+
 ## [2026-06-07] Task 0: Scaffolding and Harness Verification
 - **Status**: Completed verification of build toolchain and smoke test harness.
 - **Details**:

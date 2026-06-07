@@ -4,7 +4,11 @@ heartbeat: 50ms
 steps:
   - wake: null
   - shot: start
+  - advance: 450ms
+  - shot: moved_right
+  - key: down
+  - advance: 300ms
+  - shot: moved_down
   - rune: ' '
-  - shot: space_pressed
-  - advance: 2.5s
-  - shot: reset_after_delay
+  - advance: 300ms
+  - shot: paused
