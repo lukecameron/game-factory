@@ -4,6 +4,20 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 12: Retro Terminal Beep & Audio Cues Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Verification of audio cue compilation: Verified successful TinyGo WASM compilation and conforming verification (WASM ABI checks passes perfectly, confirming standard library `os.Stdout.Write` is safe and conforming).
+  - Verification of eating food beep: Smoke test step 81 (`food_eaten_powerup_spawned`) verifies normal execution, executing the single beep (`\a`) output.
+  - Verification of power-up collection beep: Smoke test step 93 (`shield_collected`) verifies normal execution, executing the double beep (`\a\a`) output.
+  - Verification of crash/game over beep: Smoke test steps 17 (`game_over_collision`) and 115 (`pb_game_over_collision`) verify the triple beep (`\a\a\a`) output exactly once on collision impact.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - The addition of physical terminal audio feedback via the ASCII bell makes the TUI game feel incredibly responsive and satisfying.
+  - Hearing a quick single beep on eating food immediately confirms growth and score changes, matching classical arcade sensations.
+  - The double-beep on power-ups adds a distinct, higher-priority cue that matches the visual glow and popup feedback.
+  - The triple-beep crash sound makes dying feel dramatic and impactful, complementing the existing red/white border flashing screen animations.
+
 ## [2026-06-07] Task 11: Customizable Settings Menu Test
 - **Status**: Passed successfully.
 - **Coverage**:

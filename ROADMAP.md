@@ -20,4 +20,4 @@ This file defines the tasks to be completed by the game factory. Each iteration,
 
 ## Future Ideas
 - [x] **Task 11**: Add a customizable settings menu (e.g. custom snake skins/characters, toggle grid dots, or custom start tick rates) accessible via the `S` or `s` key.
-- [ ] **Task 12**: Implement retro terminal beep/audio cues using standard ASCII bell `\a` or distinct patterns for events like eating food, collecting power-ups, or crashing.
+- [x] **Task 12**: Implement retro terminal beep/audio cues using standard ASCII bell `\a` or distinct patterns for events like eating food, collecting power-ups, or crashing.

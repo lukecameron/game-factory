@@ -4,6 +4,18 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 12: Retro Terminal Beep & Audio Cues
+- **Status**: Completed.
+- **Details**:
+  - Implemented retro terminal audio cues/beeps using the standard ASCII bell character (`\a`) written directly to the terminal stdout (`os.Stdout`).
+  - Added a helper function `triggerAudio(pattern string)` to handle writing audio patterns to the stdout.
+  - Implemented distinct beep patterns for three gameplay events:
+    - **Eating Food**: Single beep (`\a`) triggered in `onFoodEaten`.
+    - **Collecting Power-ups**: Double beep (`\a\a`) triggered when either snake's head collides with an active power-up entity.
+    - **Crashing / Game Over**: Triple beep (`\a\a\a`) triggered exactly once when a collision is registered and `rm.gameOver` transitions to true.
+  - Ensured correct compilation and execution of stdout write logic in both WASM and native Go builds.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go).
+
 ## [2026-06-07] Task 11: Customizable Settings Menu
 - **Status**: Completed.
 - **Details**:

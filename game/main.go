@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 )
 
 func main() { kit.Main(Game{}) }
+
+func triggerAudio(pattern string) {
+	_, _ = os.Stdout.Write([]byte(pattern))
+}
 
 // Game is the registry entry: metadata + a per-room behavior factory.
 type Game struct{}
@@ -1018,6 +1023,7 @@ func (rm *room) tick(r kit.Room) {
 	if rm.crashed1 || rm.crashed2 {
 		rm.gameOver = true
 		rm.lastCollisionAt = r.Now()
+		triggerAudio("\a\a\a")
 		rm.savePersonalBests(r)
 
 		// Post results to the leaderboard
@@ -1062,6 +1068,7 @@ func (rm *room) tick(r kit.Room) {
 				rm.p1PowerUpType = rm.powerUpType
 				rm.p1PowerUpExpiry = now.Add(6 * time.Second)
 				rm.powerUpActive = false
+				triggerAudio("\a\a")
 
 				// Trigger score popup / text popup
 				palettes := getPalettes()
@@ -1079,6 +1086,7 @@ func (rm *room) tick(r kit.Room) {
 				rm.p2PowerUpType = rm.powerUpType
 				rm.p2PowerUpExpiry = now.Add(6 * time.Second)
 				rm.powerUpActive = false
+				triggerAudio("\a\a")
 
 				// Trigger score popup / text popup
 				palettes := getPalettes()
@@ -1115,6 +1123,7 @@ func (rm *room) tick(r kit.Room) {
 }
 
 func (rm *room) onFoodEaten(r kit.Room, foodPos Point, snakeNum int) {
+	triggerAudio("\a")
 	speeds := []int{100, 120, 150, 180, 200}
 	startSpeed := 150
 	if rm.startSpeedIdx >= 0 && rm.startSpeedIdx < len(speeds) {
