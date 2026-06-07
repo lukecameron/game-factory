@@ -162,6 +162,27 @@ steps:
   - key: left
   - advance: 150ms
   - shot: settings_audio_toggled
+  # Move down to Screen Shake option (Option 5)
+  - rune: 's'
+  - advance: 150ms
+  - shot: settings_navigated_to_shake
+  # Change Screen Shake option to GENTLE (using left)
+  - key: left
+  - advance: 150ms
+  - shot: settings_shake_changed
+  # Move down to Screen Flash option (Option 6)
+  - rune: 's'
+  - advance: 150ms
+  - shot: settings_navigated_to_flash
+  # Change Screen Flash option to OFF (using left twice)
+  - key: left
+  - key: left
+  - advance: 150ms
+  - shot: settings_flash_changed
+  # Move down to Close & Apply (Option 7)
+  - rune: 's'
+  - advance: 150ms
+  - shot: settings_navigated_to_close
   # Close settings menu
   - rune: ' '
   - advance: 150ms

@@ -265,11 +265,12 @@ type room struct {
 	bombExplodedAt   time.Time
 
 	// Task 14 Screen FX & Particles
-	particles       []Particle
-	screenFXEnabled bool
-	shakeStartedAt  time.Time
-	shakeExpiry     time.Time
-	flashExpiry     time.Time
+	particles      []Particle
+	shakeOption    int // 0: OFF, 1: GENTLE, 2: STRONG
+	flashOption    int // 0: OFF, 1: GENTLE, 2: STRONG
+	shakeStartedAt time.Time
+	shakeExpiry    time.Time
+	flashExpiry    time.Time
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -368,7 +369,8 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.gridDotsEnabled = true
 	rm.startSpeedIdx = 2 // 150ms
 	rm.audioEnabled = true
-	rm.screenFXEnabled = true
+	rm.shakeOption = 2 // default to STRONG
+	rm.flashOption = 2 // default to STRONG
 	rm.bombActive = false
 	rm.bombExploding = false
 	rm.particles = []Particle{}
@@ -609,14 +611,25 @@ func (rm *room) OnWake(r kit.Room) {
 			rm.particles[i].CreatedAt = rm.particles[i].CreatedAt.Add(elapsedSinceLastWake)
 		}
 	} else if elapsedSinceLastWake > 0 {
-		// Update particles
+		// Update particles with gravity and drag/friction
 		var activeParticles []Particle
 		for _, p := range rm.particles {
 			age := now.Sub(p.CreatedAt)
 			if age < p.Duration {
 				dt := elapsedSinceLastWake.Seconds()
+
+				// Apply drag/friction (realistic deceleration)
+				dragFactor := 3.0
+				p.VX -= p.VX * dragFactor * dt
+				p.VY -= p.VY * dragFactor * dt
+
+				// Apply gravity (particles fall down slightly over time)
+				gravity := 12.0
+				p.VY += gravity * dt
+
 				p.X += p.VX * dt
 				p.Y += p.VY * dt
+
 				if p.X >= 0 && p.X < 39 && p.Y >= 0 && p.Y < 18 {
 					activeParticles = append(activeParticles, p)
 				}
@@ -1476,12 +1489,18 @@ func (rm *room) render(r kit.Room) {
 					continue
 				}
 				dStyle := dotStyle
-				if rm.screenFXEnabled && !rm.flashExpiry.IsZero() && now.Before(rm.flashExpiry) {
+				if rm.flashOption > 0 && !rm.flashExpiry.IsZero() && now.Before(rm.flashExpiry) {
 					flashCycle := (now.UnixNano() / 150000000) % 2
 					if flashCycle == 0 {
-						dStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0xff)}
+						if rm.flashOption == 1 {
+							// Gentle flash: use theme border color (muted)
+							dStyle = kit.Style{FG: theme.Border}
+						} else {
+							// Strong flash: flash bright white
+							dStyle = kit.Style{FG: kit.RGB(0xff, 0xff, 0xff)}
+						}
 					} else {
-						dStyle = kit.Style{FG: theme.Border}
+						dStyle = kit.Style{FG: theme.Dot}
 					}
 				}
 				f.SetRune(3+y, 1+x*2, '·', dStyle)
@@ -2037,26 +2056,44 @@ func (rm *room) getBorderStyle(r, c int, now time.Time) kit.Style {
 	theme := palettes[rm.themeIndex]
 
 	// Check if flashing (e.g. from screen flash effect)
-	if rm.screenFXEnabled && !rm.flashExpiry.IsZero() && now.Before(rm.flashExpiry) {
+	if rm.flashOption > 0 && !rm.flashExpiry.IsZero() && now.Before(rm.flashExpiry) {
 		flashCycle := (now.UnixNano() / 75000000) % 2 // 75ms toggle
 		if flashCycle == 0 {
-			return kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
+			if rm.flashOption == 1 {
+				// Gentle flash: flash border with slightly brightened theme border
+				return kit.Style{FG: brightenColor(theme.Border, 1.4), Attr: kit.AttrBold}
+			} else {
+				// Strong flash: bright white/red flash colors
+				return kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
+			}
 		} else {
-			return kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+			if rm.flashOption == 1 {
+				return kit.Style{FG: theme.Border}
+			} else {
+				return kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+			}
 		}
 	}
 
 	// Fallback/compatibility check for collision flash
-	if !rm.screenFXEnabled && !rm.lastCollisionAt.IsZero() && now.Sub(rm.lastCollisionAt) < 300*time.Millisecond {
+	if rm.flashOption == 0 && !rm.lastCollisionAt.IsZero() && now.Sub(rm.lastCollisionAt) < 300*time.Millisecond {
 		return kit.Style{FG: theme.Border}
 	}
 
-	if rm.screenFXEnabled && !rm.lastCollisionAt.IsZero() && now.Sub(rm.lastCollisionAt) < 300*time.Millisecond {
+	if rm.flashOption > 0 && !rm.lastCollisionAt.IsZero() && now.Sub(rm.lastCollisionAt) < 300*time.Millisecond {
 		flashCycle := (now.Sub(rm.lastCollisionAt).Milliseconds() / 75) % 2
 		if flashCycle == 0 {
-			return kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
+			if rm.flashOption == 1 {
+				return kit.Style{FG: brightenColor(theme.Border, 1.4), Attr: kit.AttrBold}
+			} else {
+				return kit.Style{FG: kit.RGB(0xff, 0xff, 0xff), Attr: kit.AttrBold}
+			}
 		} else {
-			return kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+			if rm.flashOption == 1 {
+				return kit.Style{FG: theme.Border}
+			} else {
+				return kit.Style{FG: kit.RGB(0xff, 0x00, 0x55), Attr: kit.AttrBold}
+			}
 		}
 	}
 
@@ -2451,9 +2488,9 @@ func (rm *room) handleSettingsInput(r kit.Room, p kit.Player, in kit.Input) {
 	if in.Kind == kit.InputRune {
 		switch in.Rune {
 		case 'w', 'W':
-			rm.settingsCursor = (rm.settingsCursor - 1 + 7) % 7
+			rm.settingsCursor = (rm.settingsCursor - 1 + 8) % 8
 		case 's', 'S':
-			rm.settingsCursor = (rm.settingsCursor + 1) % 7
+			rm.settingsCursor = (rm.settingsCursor + 1) % 8
 		case 'a', 'A':
 			rm.changeSetting(skins, speeds, -1)
 		case 'd', 'D':
@@ -2462,9 +2499,9 @@ func (rm *room) handleSettingsInput(r kit.Room, p kit.Player, in kit.Input) {
 	} else if in.Kind == kit.InputKey {
 		switch in.Key {
 		case kit.KeyUp:
-			rm.settingsCursor = (rm.settingsCursor - 1 + 7) % 7
+			rm.settingsCursor = (rm.settingsCursor - 1 + 8) % 8
 		case kit.KeyDown:
-			rm.settingsCursor = (rm.settingsCursor + 1) % 7
+			rm.settingsCursor = (rm.settingsCursor + 1) % 8
 		case kit.KeyLeft:
 			rm.changeSetting(skins, speeds, -1)
 		case kit.KeyRight:
@@ -2488,9 +2525,11 @@ func (rm *room) changeSetting(skins []rune, speeds []int, dir int) {
 		}
 	case 4: // Audio
 		rm.audioEnabled = !rm.audioEnabled
-	case 5: // Screen FX
-		rm.screenFXEnabled = !rm.screenFXEnabled
-	case 6: // Close / Back
+	case 5: // Screen Shake
+		rm.shakeOption = (rm.shakeOption + dir + 3) % 3
+	case 6: // Screen Flash
+		rm.flashOption = (rm.flashOption + dir + 3) % 3
+	case 7: // Close / Back
 		// Left/Right on Close does nothing
 	}
 }
@@ -2504,15 +2543,15 @@ func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
 	selectedStyle := kit.Style{FG: theme.Key, Attr: kit.AttrBold}
 	dimStyle := kit.Style{FG: kit.RGB(0x77, 0x77, 0x77)}
 
-	// Draw box
-	f.Text(5, 18, "╔══════════════════════════════════════════╗", modalStyle)
-	for r := 6; r <= 15; r++ {
+	// Draw box (adjusted bounds for 8 options)
+	f.Text(4, 18, "╔══════════════════════════════════════════╗", modalStyle)
+	for r := 5; r <= 16; r++ {
 		f.Text(r, 18, "║                                          ║", modalStyle)
 	}
-	f.Text(16, 18, "╚══════════════════════════════════════════╝", modalStyle)
+	f.Text(17, 18, "╚══════════════════════════════════════════╝", modalStyle)
 
 	// Title
-	f.Text(6, 32, "── SETTINGS ──", labelStyle)
+	f.Text(5, 32, "── SETTINGS ──", labelStyle)
 
 	skins := []rune{'█', '◆', '●', '■', '★'}
 	speeds := []int{100, 120, 150, 180, 200}
@@ -2577,20 +2616,31 @@ func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
 	}
 	renderOption(4, "Audio Sound", audioVal, rm.settingsCursor == 4)
 
-	// Option 5: Screen FX
-	screenFXVal := "ON"
-	if !rm.screenFXEnabled {
-		screenFXVal = "OFF"
+	// Option 5: Screen Shake
+	shakeVal := "STRONG"
+	if rm.shakeOption == 0 {
+		shakeVal = "OFF"
+	} else if rm.shakeOption == 1 {
+		shakeVal = "GENTLE"
 	}
-	renderOption(5, "Screen FX", screenFXVal, rm.settingsCursor == 5)
+	renderOption(5, "Screen Shake", shakeVal, rm.settingsCursor == 5)
 
-	// Option 6: Close & Apply
-	r := 8 + 6
+	// Option 6: Screen Flash
+	flashVal := "STRONG"
+	if rm.flashOption == 0 {
+		flashVal = "OFF"
+	} else if rm.flashOption == 1 {
+		flashVal = "GENTLE"
+	}
+	renderOption(6, "Screen Flash", flashVal, rm.settingsCursor == 6)
+
+	// Option 7: Close & Apply
+	r := 8 + 7
 	for c := 20; c <= 59; c++ {
 		f.SetRune(r, c, ' ', textStyle)
 	}
 	closeText := "Close & Apply"
-	if rm.settingsCursor == 6 {
+	if rm.settingsCursor == 7 {
 		closeText = "▶ Close & Apply ◀"
 		f.Text(r, 40-len(closeText)/2, closeText, selectedStyle)
 	} else {
@@ -2599,7 +2649,7 @@ func (rm *room) drawSettingsModal(f *kit.Frame, now time.Time) {
 	
 	// Instructions
 	instText := "Press [SPACE] to Close"
-	f.Text(15, 40-len(instText)/2, instText, dimStyle)
+	f.Text(16, 40-len(instText)/2, instText, dimStyle)
 }
 
 func (rm *room) spawnParticles(r kit.Room, x, y int, color kit.Color, count int, pType string) {
@@ -2638,25 +2688,33 @@ func (rm *room) spawnParticles(r kit.Room, x, y int, color kit.Color, count int,
 }
 
 func (rm *room) triggerShake(r kit.Room, duration time.Duration) {
-	if rm.screenFXEnabled {
+	if rm.shakeOption > 0 {
 		rm.shakeStartedAt = r.Now()
 		rm.shakeExpiry = r.Now().Add(duration)
 	}
 }
 
 func (rm *room) triggerFlash(r kit.Room, duration time.Duration) {
-	if rm.screenFXEnabled {
+	if rm.flashOption > 0 {
 		rm.flashExpiry = r.Now().Add(duration)
 	}
 }
 
 func (rm *room) applyShakeAndSend(r kit.Room, p kit.Player, f *kit.Frame, now time.Time) {
-	if rm.screenFXEnabled && !rm.shakeExpiry.IsZero() && now.Before(rm.shakeExpiry) {
+	if rm.shakeOption > 0 && !rm.shakeExpiry.IsZero() && now.Before(rm.shakeExpiry) {
 		elapsed := now.Sub(rm.shakeStartedAt)
 		phase := elapsed.Milliseconds() / 40
 
-		offsetsX := []int{1, -1, 0, 1, -1, 0, 1, -1}
-		offsetsY := []int{0, 1, -1, 1, 0, -1, 1, -1}
+		var offsetsX, offsetsY []int
+		if rm.shakeOption == 1 {
+			// Gentle shake: offset stays within 1 cell
+			offsetsX = []int{1, -1, 0, 0, 1, -1, 0, 0}
+			offsetsY = []int{0, 0, 1, -1, 0, 0, 1, -1}
+		} else {
+			// Strong shake: offset up to 2 cells
+			offsetsX = []int{2, -2, 0, 1, -1, 2, -2, 1}
+			offsetsY = []int{0, 1, -2, 2, 0, -1, 1, -2}
+		}
 
 		idx := int(phase) % len(offsetsX)
 		dx := offsetsX[idx]
