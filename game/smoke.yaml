@@ -43,7 +43,23 @@ steps:
   # Advance to let maze hazards move
   - advance: 300ms
   - shot: mode_maze_moving
+  # Switch to PORTALS mode (press 'm')
+  - rune: 'm'
+  - advance: 150ms
+  - shot: mode_portals_start
+  # Steer Snake 2 down to avoid head-on collision
+  - seat: 1
+  - key: down
+  - advance: 150ms
+  # Now let Snake 1 run right towards Portal B (at 29,9)
+  # Snake 1 starts at 10,9. Moves to 11,9 at first advance. Needs 18 more advances to reach 29,9 (2700ms).
+  - advance: 2700ms
+  - shot: snake1_at_portal_b
+  # Advance 1 more tick to trigger teleportation to Portal A (9,9) and emergence at (10,9)
+  - advance: 150ms
+  - shot: snake1_teleported
   # Switch back to CLASSIC mode (press 'm')
+  - seat: 0
   - rune: 'm'
   - advance: 150ms
   - shot: mode_classic_returned

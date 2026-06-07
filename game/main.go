@@ -158,6 +158,7 @@ const (
 	ModeClassic GameMode = iota
 	ModeHazard
 	ModeMaze
+	ModePortal
 )
 
 type Hazard struct {
@@ -227,6 +228,9 @@ type room struct {
 	tickCount int
 	lastWake  time.Time
 	p2IsBot   bool
+
+	portalA Point
+	portalB Point
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -304,6 +308,8 @@ func (rm *room) getModeName() string {
 		return "HAZARDS"
 	case ModeMaze:
 		return "MAZE"
+	case ModePortal:
+		return "PORTALS"
 	default:
 		return "CLASSIC"
 	}
@@ -354,6 +360,8 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.tickCount = 0
 	rm.lastWake = r.Now()
 	rm.p2IsBot = false
+	rm.portalA = Point{X: 9, Y: 9}
+	rm.portalB = Point{X: 29, Y: 9}
 
 	// Initialize hazards
 	rm.initHazards()
@@ -468,7 +476,7 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 
 	// Switch Mode support
 	if in.Kind == kit.InputRune && (in.Rune == 'm' || in.Rune == 'M') {
-		rm.gameMode = (rm.gameMode + 1) % 3
+		rm.gameMode = (rm.gameMode + 1) % 4
 		rm.reset(r)
 	}
 
@@ -641,6 +649,8 @@ func (rm *room) reset(r kit.Room) {
 	rm.p2PowerUpExpiry = time.Time{}
 	rm.tickCount = 0
 	rm.lastWake = r.Now()
+	rm.portalA = Point{X: 9, Y: 9}
+	rm.portalB = Point{X: 29, Y: 9}
 
 	// Initialize hazards
 	rm.initHazards()
@@ -727,6 +737,11 @@ func (rm *room) randomFreePoint(r kit.Room, avoidHeadRange int) Point {
 			continue
 		}
 
+		// Check portals collision
+		if rm.gameMode == ModePortal && (p == rm.portalA || p == rm.portalB) {
+			continue
+		}
+
 		// Avoid snake head range if requested
 		if avoidHeadRange > 0 {
 			headAvoid := false
@@ -804,19 +819,28 @@ func (rm *room) tick(r kit.Room) {
 			rm.snake1[i] = rm.snake1[i-1]
 		}
 		// Update Snake 1 head position
-		rm.snake1[0].X += rm.entityDir1.X
-		rm.snake1[0].Y += rm.entityDir1.Y
+		head1 := rm.snake1[0]
+		if rm.gameMode == ModePortal && head1 == rm.portalA {
+			rm.snake1[0].X = (rm.portalB.X + rm.entityDir1.X + 39) % 39
+			rm.snake1[0].Y = (rm.portalB.Y + rm.entityDir1.Y + 18) % 18
+		} else if rm.gameMode == ModePortal && head1 == rm.portalB {
+			rm.snake1[0].X = (rm.portalA.X + rm.entityDir1.X + 39) % 39
+			rm.snake1[0].Y = (rm.portalA.Y + rm.entityDir1.Y + 18) % 18
+		} else {
+			rm.snake1[0].X += rm.entityDir1.X
+			rm.snake1[0].Y += rm.entityDir1.Y
 
-		// Wrap boundaries for Snake 1
-		if rm.snake1[0].X < 0 {
-			rm.snake1[0].X = 38
-		} else if rm.snake1[0].X > 38 {
-			rm.snake1[0].X = 0
-		}
-		if rm.snake1[0].Y < 0 {
-			rm.snake1[0].Y = 17
-		} else if rm.snake1[0].Y > 17 {
-			rm.snake1[0].Y = 0
+			// Wrap boundaries for Snake 1
+			if rm.snake1[0].X < 0 {
+				rm.snake1[0].X = 38
+			} else if rm.snake1[0].X > 38 {
+				rm.snake1[0].X = 0
+			}
+			if rm.snake1[0].Y < 0 {
+				rm.snake1[0].Y = 17
+			} else if rm.snake1[0].Y > 17 {
+				rm.snake1[0].Y = 0
+			}
 		}
 		rm.lastMovedDir1 = rm.entityDir1
 	}
@@ -838,19 +862,28 @@ func (rm *room) tick(r kit.Room) {
 			rm.snake2[i] = rm.snake2[i-1]
 		}
 		// Update Snake 2 head position
-		rm.snake2[0].X += rm.entityDir2.X
-		rm.snake2[0].Y += rm.entityDir2.Y
+		head2 := rm.snake2[0]
+		if rm.gameMode == ModePortal && head2 == rm.portalA {
+			rm.snake2[0].X = (rm.portalB.X + rm.entityDir2.X + 39) % 39
+			rm.snake2[0].Y = (rm.portalB.Y + rm.entityDir2.Y + 18) % 18
+		} else if rm.gameMode == ModePortal && head2 == rm.portalB {
+			rm.snake2[0].X = (rm.portalA.X + rm.entityDir2.X + 39) % 39
+			rm.snake2[0].Y = (rm.portalA.Y + rm.entityDir2.Y + 18) % 18
+		} else {
+			rm.snake2[0].X += rm.entityDir2.X
+			rm.snake2[0].Y += rm.entityDir2.Y
 
-		// Wrap boundaries for Snake 2
-		if rm.snake2[0].X < 0 {
-			rm.snake2[0].X = 38
-		} else if rm.snake2[0].X > 38 {
-			rm.snake2[0].X = 0
-		}
-		if rm.snake2[0].Y < 0 {
-			rm.snake2[0].Y = 17
-		} else if rm.snake2[0].Y > 17 {
-			rm.snake2[0].Y = 0
+			// Wrap boundaries for Snake 2
+			if rm.snake2[0].X < 0 {
+				rm.snake2[0].X = 38
+			} else if rm.snake2[0].X > 38 {
+				rm.snake2[0].X = 0
+			}
+			if rm.snake2[0].Y < 0 {
+				rm.snake2[0].Y = 17
+			} else if rm.snake2[0].Y > 17 {
+				rm.snake2[0].Y = 0
+			}
 		}
 		rm.lastMovedDir2 = rm.entityDir2
 	}
@@ -1174,6 +1207,10 @@ func (rm *room) render(r kit.Room) {
 	if rm.powerUpActive {
 		occupied[rm.powerUpPos] = true
 	}
+	if rm.gameMode == ModePortal {
+		occupied[rm.portalA] = true
+		occupied[rm.portalB] = true
+	}
 
 	p1ShieldActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "SHIELD"
 	p1FreezeActive := !rm.p1PowerUpExpiry.IsZero() && now.Before(rm.p1PowerUpExpiry) && rm.p1PowerUpType == "FREEZE"
@@ -1203,6 +1240,24 @@ func (rm *room) render(r kit.Room) {
 				}
 			}
 		}
+	}
+
+	// 3.6 Draw Portals if in ModePortal
+	if rm.gameMode == ModePortal {
+		elapsed := now.Sub(rm.startedAt)
+		pulseA := 0.75 + 0.25*math.Sin(float64(elapsed.Milliseconds())*0.01)
+		pulseB := 0.75 + 0.25*math.Sin(float64(elapsed.Milliseconds())*0.01 + math.Pi)
+
+		// Portal A: neon blue/cyan
+		colorA := brightenColor(kit.RGB(0x00, 0xd2, 0xff), pulseA)
+		styleA := kit.Style{FG: colorA, Attr: kit.AttrBold}
+
+		// Portal B: neon orange/gold
+		colorB := brightenColor(kit.RGB(0xff, 0x9d, 0x00), pulseB)
+		styleB := kit.Style{FG: colorB, Attr: kit.AttrBold}
+
+		f.SetWide(3+rm.portalA.Y, 1+rm.portalA.X*2, '◎', styleA)
+		f.SetWide(3+rm.portalB.Y, 1+rm.portalB.X*2, '◎', styleB)
 	}
 
 	// 4. Draw Food (Pulsing glowing neon star, rotating/twinkling glyph)
@@ -1802,9 +1857,22 @@ func (rm *room) findShortestDir(start Point, target Point, oppositeDir Point, p1
 				continue
 			}
 
-			nextP := Point{
-				X: (curr.pos.X + d.X + 39) % 39,
-				Y: (curr.pos.Y + d.Y + 18) % 18,
+			var nextP Point
+			if rm.gameMode == ModePortal && curr.pos == rm.portalA {
+				nextP = Point{
+					X: (rm.portalB.X + d.X + 39) % 39,
+					Y: (rm.portalB.Y + d.Y + 18) % 18,
+				}
+			} else if rm.gameMode == ModePortal && curr.pos == rm.portalB {
+				nextP = Point{
+					X: (rm.portalA.X + d.X + 39) % 39,
+					Y: (rm.portalA.Y + d.Y + 18) % 18,
+				}
+			} else {
+				nextP = Point{
+					X: (curr.pos.X + d.X + 39) % 39,
+					Y: (curr.pos.Y + d.Y + 18) % 18,
+				}
 			}
 
 			if !visited[nextP] {
@@ -1828,9 +1896,22 @@ func (rm *room) findShortestDir(start Point, target Point, oppositeDir Point, p1
 		if d == oppositeDir {
 			continue
 		}
-		nextP := Point{
-			X: (start.X + d.X + 39) % 39,
-			Y: (start.Y + d.Y + 18) % 18,
+		var nextP Point
+		if rm.gameMode == ModePortal && start == rm.portalA {
+			nextP = Point{
+				X: (rm.portalB.X + d.X + 39) % 39,
+				Y: (rm.portalB.Y + d.Y + 18) % 18,
+			}
+		} else if rm.gameMode == ModePortal && start == rm.portalB {
+			nextP = Point{
+				X: (rm.portalA.X + d.X + 39) % 39,
+				Y: (rm.portalA.Y + d.Y + 18) % 18,
+			}
+		} else {
+			nextP = Point{
+				X: (start.X + d.X + 39) % 39,
+				Y: (start.Y + d.Y + 18) % 18,
+			}
 		}
 
 		if isSafeBFS(nextP, true, d) {
@@ -1908,9 +1989,22 @@ func (rm *room) countReachableSpace(start Point, p1FreezeActive, p2FreezeActive 
 		count++
 
 		for _, d := range dirs {
-			nextP := Point{
-				X: (curr.X + d.X + 39) % 39,
-				Y: (curr.Y + d.Y + 18) % 18,
+			var nextP Point
+			if rm.gameMode == ModePortal && curr == rm.portalA {
+				nextP = Point{
+					X: (rm.portalB.X + d.X + 39) % 39,
+					Y: (rm.portalB.Y + d.Y + 18) % 18,
+				}
+			} else if rm.gameMode == ModePortal && curr == rm.portalB {
+				nextP = Point{
+					X: (rm.portalA.X + d.X + 39) % 39,
+					Y: (rm.portalA.Y + d.Y + 18) % 18,
+				}
+			} else {
+				nextP = Point{
+					X: (curr.X + d.X + 39) % 39,
+					Y: (curr.Y + d.Y + 18) % 18,
+				}
 			}
 			if !visited[nextP] && isSafeBFS(nextP) {
 				visited[nextP] = true
