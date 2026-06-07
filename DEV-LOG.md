@@ -4,6 +4,15 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 7: Dual-Snake Multiplayer Concurrent Steering and Key Bindings
+- **Status**: Completed.
+- **Details**:
+  - Implemented concurrent dual-snake input handling: Player 1 controls Snake 1 using WASD keys, while Player 2 controls Snake 2 using Arrow keys.
+  - In single-player mode, the single active seat controls both Snake 1 (WASD) and Snake 2 (Arrow keys) concurrently as a dual-control co-op challenge.
+  - In multiplayer mode, the controls are strictly separated (Player 1 only receives WASD inputs; Player 2 only receives Arrow key inputs) to allow simultaneous play without key binding conflicts.
+  - Redesigned and optimized the bottom TUI footer layout to display specific control labels dynamically based on play mode (e.g. `[P1:WASD P2:Arrows]` in multiplayer, and `[S1:WASD S2:Arrows]` in single-player/co-op mode), while maintaining the strict 80-column TUI boundary constraints.
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 6: Game Modes, Patrolling Hazards, and Custom Maze Layout
 - **Status**: Completed.
 - **Details**:

@@ -20,7 +20,16 @@ steps:
   - rune: ' '
   - advance: 150ms
   - shot: restarted
+  # Test Player 1 steering Snake 1 down (using rune 's')
+  - seat: 0
+  - rune: 's'
+  # Test Player 2 steering Snake 2 up (using key up)
+  - seat: 1
+  - key: up
+  - advance: 300ms
+  - shot: steered_snakes
   # Switch to HAZARDS mode (press 'm')
+  - seat: 0
   - rune: 'm'
   - advance: 150ms
   - shot: mode_hazards_start

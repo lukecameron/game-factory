@@ -361,88 +361,48 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 	// Handle steering keys concurrently
 	if !rm.gameOver && rm.gameStarted {
 		if in.Kind == kit.InputRune {
-			switch in.Rune {
-			case 'w', 'W':
-				if isPlayer1 && rm.lastMovedDir1.Y != 1 {
-					rm.entityDir1 = Point{X: 0, Y: -1}
-				} else if isPlayer2 && rm.lastMovedDir2.Y != 1 {
-					rm.entityDir2 = Point{X: 0, Y: -1}
-				}
-			case 's', 'S':
-				if isPlayer1 && rm.lastMovedDir1.Y != -1 {
-					rm.entityDir1 = Point{X: 0, Y: 1}
-				} else if isPlayer2 && rm.lastMovedDir2.Y != -1 {
-					rm.entityDir2 = Point{X: 0, Y: 1}
-				}
-			case 'a', 'A':
-				if isPlayer1 && rm.lastMovedDir1.X != 1 {
-					rm.entityDir1 = Point{X: -1, Y: 0}
-				} else if isPlayer2 && rm.lastMovedDir2.X != 1 {
-					rm.entityDir2 = Point{X: -1, Y: 0}
-				}
-			case 'd', 'D':
-				if isPlayer1 && rm.lastMovedDir1.X != -1 {
-					rm.entityDir1 = Point{X: 1, Y: 0}
-				} else if isPlayer2 && rm.lastMovedDir2.X != -1 {
-					rm.entityDir2 = Point{X: 1, Y: 0}
-				}
-			}
-		} else if in.Kind == kit.InputKey {
-			switch in.Key {
-			case kit.KeyUp:
-				if isPlayer2 {
-					if rm.lastMovedDir2.Y != 1 {
-						rm.entityDir2 = Point{X: 0, Y: -1}
-					}
-				} else if isPlayer1 && len(members) < 2 {
-					if rm.lastMovedDir2.Y != 1 {
-						rm.entityDir2 = Point{X: 0, Y: -1}
-					}
-				} else if isPlayer1 && len(members) >= 2 {
+			// Player 1 controls Snake 1 using WASD
+			if isPlayer1 {
+				switch in.Rune {
+				case 'w', 'W':
 					if rm.lastMovedDir1.Y != 1 {
 						rm.entityDir1 = Point{X: 0, Y: -1}
 					}
-				}
-			case kit.KeyDown:
-				if isPlayer2 {
-					if rm.lastMovedDir2.Y != -1 {
-						rm.entityDir2 = Point{X: 0, Y: 1}
-					}
-				} else if isPlayer1 && len(members) < 2 {
-					if rm.lastMovedDir2.Y != -1 {
-						rm.entityDir2 = Point{X: 0, Y: 1}
-					}
-				} else if isPlayer1 && len(members) >= 2 {
+				case 's', 'S':
 					if rm.lastMovedDir1.Y != -1 {
 						rm.entityDir1 = Point{X: 0, Y: 1}
 					}
-				}
-			case kit.KeyLeft:
-				if isPlayer2 {
-					if rm.lastMovedDir2.X != 1 {
-						rm.entityDir2 = Point{X: -1, Y: 0}
-					}
-				} else if isPlayer1 && len(members) < 2 {
-					if rm.lastMovedDir2.X != 1 {
-						rm.entityDir2 = Point{X: -1, Y: 0}
-					}
-				} else if isPlayer1 && len(members) >= 2 {
+				case 'a', 'A':
 					if rm.lastMovedDir1.X != 1 {
 						rm.entityDir1 = Point{X: -1, Y: 0}
 					}
-				}
-			case kit.KeyRight:
-				if isPlayer2 {
-					if rm.lastMovedDir2.X != -1 {
-						rm.entityDir2 = Point{X: 1, Y: 0}
-					}
-				} else if isPlayer1 && len(members) < 2 {
-					if rm.lastMovedDir2.X != -1 {
-						rm.entityDir2 = Point{X: 1, Y: 0}
-					}
-				} else if isPlayer1 && len(members) >= 2 {
+				case 'd', 'D':
 					if rm.lastMovedDir1.X != -1 {
 						rm.entityDir1 = Point{X: 1, Y: 0}
+					}
+				}
+			}
+		} else if in.Kind == kit.InputKey {
+			// Player 2 controls Snake 2 using Arrow keys.
+			// In single-player co-op (len(members) < 2), Player 1 controls Snake 2 using Arrow keys.
+			canControlSnake2 := isPlayer2 || (isPlayer1 && len(members) < 2)
+			if canControlSnake2 {
+				switch in.Key {
+				case kit.KeyUp:
+					if rm.lastMovedDir2.Y != 1 {
+						rm.entityDir2 = Point{X: 0, Y: -1}
+					}
+				case kit.KeyDown:
+					if rm.lastMovedDir2.Y != -1 {
+						rm.entityDir2 = Point{X: 0, Y: 1}
+					}
+				case kit.KeyLeft:
+					if rm.lastMovedDir2.X != 1 {
+						rm.entityDir2 = Point{X: -1, Y: 0}
+					}
+				case kit.KeyRight:
+					if rm.lastMovedDir2.X != -1 {
+						rm.entityDir2 = Point{X: 1, Y: 0}
 					}
 				}
 			}
@@ -1175,24 +1135,28 @@ func (rm *room) render(r kit.Room) {
 	f.Text(22, 2, "CONTROLS:", footerStyle)
 	col := 12
 	col = f.Text(22, col, " [", footerStyle)
-	col = f.Text(22, col, "WASD/Arrows", keyStyle)
+	if len(members) >= 2 {
+		col = f.Text(22, col, "P1:WASD P2:Arrows", keyStyle)
+	} else {
+		col = f.Text(22, col, "S1:WASD S2:Arrows", keyStyle)
+	}
 	col = f.Text(22, col, "] Move", footerStyle)
 
 	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "T", keyStyle)
-	col = f.Text(22, col, "] Theme", footerStyle)
+	col = f.Text(22, col, "]Theme", footerStyle)
 
 	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "M", keyStyle)
-	col = f.Text(22, col, "] Mode", footerStyle)
+	col = f.Text(22, col, "]Mode", footerStyle)
 
 	col = f.Text(22, col+1, " [", footerStyle)
-	col = f.Text(22, col, "Space", keyStyle)
-	col = f.Text(22, col, "] Pause", footerStyle)
+	col = f.Text(22, col, "Spc", keyStyle)
+	col = f.Text(22, col, "]Pause", footerStyle)
 
 	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "Esc", keyStyle)
-	col = f.Text(22, col, "] Quit", footerStyle)
+	col = f.Text(22, col, "]Quit", footerStyle)
 
 	// 9. Draw Game Over Overlay
 	if rm.gameOver {

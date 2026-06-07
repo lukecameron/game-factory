@@ -4,6 +4,24 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 7: Dual-Snake Multiplayer Concurrent Steering and Key Bindings Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Initial load rendering in classic mode with 2 seats (multiplayer layout).
+  - Theme switching verification for seat 0 (Player 1) and seat 1 (Player 2).
+  - Normal gameplay automatic movement leading to mutual head-on collision and Game Over display.
+  - Game restart using Space key from Player 1 (seat 0).
+  - Concurrent steering input verification:
+    - Player 1 (seat 0) sends WASD input 's' to steer Snake 1 downwards.
+    - Player 2 (seat 1) sends Arrow Key input 'up' to steer Snake 2 upwards.
+    - Advancing time by 300ms to verify both snakes react concurrently and move safely in their new directions.
+  - Game mode switching to **Hazards**, then **Maze**, and cycling back to **Classic** while verifying correct layouts and hazard movement.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - The steering controls feel incredibly responsive. Restricting Player 1 to WASD and Player 2 to Arrow keys ensures no overlapping keystroke conflicts, making concurrent local play on a shared keyboard extremely fun and smooth.
+  - The bottom TUI footer automatically changes labels (e.g. `[P1:WASD P2:Arrows]` vs `[S1:WASD S2:Arrows]`) which makes it very clear how to play, fitting perfectly within the 80x24 TUI screen limits.
+  - Dual-control co-op mode (in single-player) offers a unique and tricky brain-teaser challenge, as you navigate both snakes concurrently trying to coordinate their paths without crashing into each other or obstacles.
+
 ## [2026-06-07] Task 6: Game Modes, Patrolling Hazards, and Custom Maze Layout Test
 - **Status**: Passed successfully.
 - **Coverage**:
