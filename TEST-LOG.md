@@ -4,6 +4,19 @@ This log documents test coverage, gameplay feel, input responsiveness, and visua
 
 ---
 
+## [2026-06-07] Task 9: AI Bot Option for Snake 2 in Single-Player/Co-op Mode Test
+- **Status**: Passed successfully.
+- **Coverage**:
+  - Verification of AI Bot toggle functionality: Player 1 triggers the bot toggle key (`b`) which transitions the active playstyle.
+  - Verification of BFS-based guide movement: Once enabled, Snake 2 steers itself UP towards the active food coordinate on successive ticks.
+  - Verification of Manual override behavior: Player 2 inputs a steering override key (`left` keypress), which immediately deactivates the AI Bot and places the snake back under manual control.
+  - Verification of UI constraints: TUI status panels, divider details, and bottom navigation controls adapt cleanly within 80-column limits when bot states change.
+- **Playback URL**: [playback.html](file:///home/luke/dev/game-factory/test-logs/shots/playback.html)
+- **Gameplay Feel Observations**:
+  - Toggling between co-op manual play and CPU bot mode feels extremely fluid and responsive.
+  - The BFS pathfinding allows the bot to make smart decisions, hunting down food efficiently without crashing.
+  - The instant override is a superb UX feature; players can let the bot handle simple straight paths, but grab the controls immediately when they want to make fine-tuned maneuvers, which feels incredibly smooth and empowering.
+
 ## [2026-06-07] Task 8: Power-ups (Shield & Freeze) and Pause State Timer Tracking Test
 - **Status**: Passed successfully.
 - **Coverage**:

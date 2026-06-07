@@ -15,3 +15,5 @@ This file defines the tasks to be completed by the game factory. Each iteration,
 - [x] **Task 6**: Add moving/patrolling hazards or complex maps (e.g. mazes) to the playfield.
 - [x] **Task 7**: Implement dual-snake multiplayer where two players steer their own snakes concurrently using different key bindings.
 - [x] **Task 8**: Implement Power-ups (Shield & Freeze) to dynamically alter gameplay mechanics and track them correctly during pause/game-over states.
+- [x] **Task 9**: Implement an AI Bot player option for Snake 2 in single-player/co-op mode. Add a toggle key B to switch between CO-OP and BOT, guiding Snake 2 using BFS pathfinding and fallback survival flood fill, with manual steering overriding the bot instantly.
+

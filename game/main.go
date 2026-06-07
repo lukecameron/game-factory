@@ -217,6 +217,7 @@ type room struct {
 
 	tickCount int
 	lastWake  time.Time
+	p2IsBot   bool
 }
 
 func (rm *room) updateActivePlayer(r kit.Room) {
@@ -343,6 +344,7 @@ func (rm *room) OnStart(r kit.Room) {
 	rm.p2PowerUpExpiry = time.Time{}
 	rm.tickCount = 0
 	rm.lastWake = r.Now()
+	rm.p2IsBot = false
 
 	// Initialize hazards
 	rm.initHazards()
@@ -357,6 +359,9 @@ func (rm *room) OnStart(r kit.Room) {
 
 func (rm *room) OnJoin(r kit.Room, p kit.Player) {
 	rm.updateActivePlayer(r)
+	if len(r.Members()) >= 2 {
+		rm.p2IsBot = false
+	}
 	rm.render(r)
 }
 
@@ -410,6 +415,9 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 			// In single-player co-op (len(members) < 2), Player 1 controls Snake 2 using Arrow keys.
 			canControlSnake2 := isPlayer2 || (isPlayer1 && len(members) < 2)
 			if canControlSnake2 {
+				if rm.p2IsBot {
+					rm.p2IsBot = false
+				}
 				switch in.Key {
 				case kit.KeyUp:
 					if rm.lastMovedDir2.Y != 1 {
@@ -452,6 +460,11 @@ func (rm *room) OnInput(r kit.Room, p kit.Player, in kit.Input) {
 	if in.Kind == kit.InputRune && (in.Rune == 'm' || in.Rune == 'M') {
 		rm.gameMode = (rm.gameMode + 1) % 3
 		rm.reset(r)
+	}
+
+	// Switch Bot support
+	if in.Kind == kit.InputRune && (in.Rune == 'b' || in.Rune == 'B') {
+		rm.p2IsBot = !rm.p2IsBot
 	}
 
 	rm.render(r)
@@ -711,6 +724,17 @@ func (rm *room) tick(r kit.Room) {
 	}
 
 	if move2 {
+		if rm.p2IsBot {
+			oppositeDir := Point{X: -rm.lastMovedDir2.X, Y: -rm.lastMovedDir2.Y}
+			target := rm.food
+			if rm.powerUpActive {
+				target = rm.powerUpPos
+			}
+			dir, ok := rm.findShortestDir(rm.snake2[0], target, oppositeDir, p1FreezeActive, p2FreezeActive)
+			if ok {
+				rm.entityDir2 = dir
+			}
+		}
 		// Move Snake 2 body
 		for i := len(rm.snake2) - 1; i > 0; i-- {
 			rm.snake2[i] = rm.snake2[i-1]
@@ -1321,7 +1345,11 @@ func (rm *room) render(r kit.Room) {
 	if len(members) >= 2 {
 		dividerText = fmt.Sprintf(" MODE: %s │ P1: %s%s VS P2: %s%s ", rm.getModeName(), members[0].Handle, p1Status, members[1].Handle, p2Status)
 	} else {
-		dividerText = fmt.Sprintf(" MODE: %s │ DUAL CONTROL CO-OP %s%s ", rm.getModeName(), p1Status, p2Status)
+		botText := "CO-OP"
+		if rm.p2IsBot {
+			botText = "AI-BOT"
+		}
+		dividerText = fmt.Sprintf(" MODE: %s │ PLAYSTYLE: %s %s%s ", rm.getModeName(), botText, p1Status, p2Status)
 	}
 	rm.drawDividerWithText(f, 21, dividerText, now)
 
@@ -1332,7 +1360,11 @@ func (rm *room) render(r kit.Room) {
 	if len(members) >= 2 {
 		col = f.Text(22, col, "P1:WASD P2:Arrows", keyStyle)
 	} else {
-		col = f.Text(22, col, "S1:WASD S2:Arrows", keyStyle)
+		if rm.p2IsBot {
+			col = f.Text(22, col, "WASD/Bot", keyStyle)
+		} else {
+			col = f.Text(22, col, "WASD/Arrows", keyStyle)
+		}
 	}
 	col = f.Text(22, col, "] Move", footerStyle)
 
@@ -1343,6 +1375,12 @@ func (rm *room) render(r kit.Room) {
 	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "M", keyStyle)
 	col = f.Text(22, col, "]Mode", footerStyle)
+
+	if len(members) < 2 {
+		col = f.Text(22, col+1, " [", footerStyle)
+		col = f.Text(22, col, "B", keyStyle)
+		col = f.Text(22, col, "]Bot", footerStyle)
+	}
 
 	col = f.Text(22, col+1, " [", footerStyle)
 	col = f.Text(22, col, "Spc", keyStyle)
@@ -1515,4 +1553,197 @@ func interpolateColor(c1, c2 kit.Color, t float64) kit.Color {
 	g := uint8(float64(g1) + t*float64(int(g2)-int(g1)))
 	b := uint8(float64(b1) + t*float64(int(b2)-int(b1)))
 	return kit.RGB(r, g, b)
+}
+
+func (rm *room) findShortestDir(start Point, target Point, oppositeDir Point, p1FreezeActive, p2FreezeActive bool) (Point, bool) {
+	// BFS pathfinding queue
+	type QueueNode struct {
+		pos  Point
+		path []Point
+	}
+
+	queue := []QueueNode{
+		{pos: start, path: []Point{}},
+	}
+	visited := make(map[Point]bool)
+	visited[start] = true
+
+	isSafeBFS := func(p Point, isStart bool, prevDir Point) bool {
+		if rm.isMazeWall(p) {
+			return false
+		}
+		for _, op := range rm.obstacles {
+			if op == p {
+				return false
+			}
+		}
+		for _, sp := range rm.snake1 {
+			if sp == p {
+				return false
+			}
+		}
+		for _, sp := range rm.snake2 {
+			if sp == p {
+				return false
+			}
+		}
+		for _, hp := range rm.hazards {
+			if hp.Pos == p {
+				return false
+			}
+			if !p1FreezeActive && !p2FreezeActive {
+				nextHX := hp.Pos.X + hp.Dir.X
+				nextHY := hp.Pos.Y + hp.Dir.Y
+				if nextHX < hp.MinX || nextHX > hp.MaxX || nextHY < hp.MinY || nextHY > hp.MaxY {
+					nextHX = hp.Pos.X - hp.Dir.X
+					nextHY = hp.Pos.Y - hp.Dir.Y
+				}
+				if p.X == nextHX && p.Y == nextHY {
+					return false
+				}
+			}
+		}
+		return true
+	}
+
+	dirs := []Point{
+		{X: 0, Y: -1}, // Up
+		{X: 0, Y: 1},  // Down
+		{X: -1, Y: 0}, // Left
+		{X: 1, Y: 0},  // Right
+	}
+
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+
+		if curr.pos == target {
+			if len(curr.path) > 0 {
+				return curr.path[0], true
+			}
+			return Point{X: 0, Y: 0}, false
+		}
+
+		for _, d := range dirs {
+			if curr.pos == start && d == oppositeDir {
+				continue
+			}
+
+			nextP := Point{
+				X: (curr.pos.X + d.X + 39) % 39,
+				Y: (curr.pos.Y + d.Y + 18) % 18,
+			}
+
+			if !visited[nextP] {
+				if nextP == target || isSafeBFS(nextP, curr.pos == start, d) {
+					visited[nextP] = true
+					newPath := make([]Point, len(curr.path)+1)
+					copy(newPath, curr.path)
+					newPath[len(curr.path)] = d
+					queue = append(queue, QueueNode{pos: nextP, path: newPath})
+				}
+			}
+		}
+	}
+
+	// Fallback to survival space maximization if no path to target found
+	var bestDir Point
+	bestSpace := -1
+	hasSafeMove := false
+
+	for _, d := range dirs {
+		if d == oppositeDir {
+			continue
+		}
+		nextP := Point{
+			X: (start.X + d.X + 39) % 39,
+			Y: (start.Y + d.Y + 18) % 18,
+		}
+
+		if isSafeBFS(nextP, true, d) {
+			hasSafeMove = true
+			space := rm.countReachableSpace(nextP, p1FreezeActive, p2FreezeActive)
+			if space > bestSpace {
+				bestSpace = space
+				bestDir = d
+			}
+		}
+	}
+
+	if hasSafeMove {
+		return bestDir, true
+	}
+
+	return Point{X: 0, Y: 0}, false
+}
+
+func (rm *room) countReachableSpace(start Point, p1FreezeActive, p2FreezeActive bool) int {
+	visited := make(map[Point]bool)
+	visited[start] = true
+	queue := []Point{start}
+	count := 0
+	maxDepth := 50
+
+	isSafeBFS := func(p Point) bool {
+		if rm.isMazeWall(p) {
+			return false
+		}
+		for _, op := range rm.obstacles {
+			if op == p {
+				return false
+			}
+		}
+		for _, sp := range rm.snake1 {
+			if sp == p {
+				return false
+			}
+		}
+		for _, sp := range rm.snake2 {
+			if sp == p {
+				return false
+			}
+		}
+		for _, hp := range rm.hazards {
+			if hp.Pos == p {
+				return false
+			}
+			if !p1FreezeActive && !p2FreezeActive {
+				nextHX := hp.Pos.X + hp.Dir.X
+				nextHY := hp.Pos.Y + hp.Dir.Y
+				if nextHX < hp.MinX || nextHX > hp.MaxX || nextHY < hp.MinY || nextHY > hp.MaxY {
+					nextHX = hp.Pos.X - hp.Dir.X
+					nextHY = hp.Pos.Y - hp.Dir.Y
+				}
+				if p.X == nextHX && p.Y == nextHY {
+					return false
+				}
+			}
+		}
+		return true
+	}
+
+	dirs := []Point{
+		{X: 0, Y: -1},
+		{X: 0, Y: 1},
+		{X: -1, Y: 0},
+		{X: 1, Y: 0},
+	}
+
+	for len(queue) > 0 && count < maxDepth {
+		curr := queue[0]
+		queue = queue[1:]
+		count++
+
+		for _, d := range dirs {
+			nextP := Point{
+				X: (curr.X + d.X + 39) % 39,
+				Y: (curr.Y + d.Y + 18) % 18,
+			}
+			if !visited[nextP] && isSafeBFS(nextP) {
+				visited[nextP] = true
+				queue = append(queue, nextP)
+			}
+		}
+	}
+	return count
 }

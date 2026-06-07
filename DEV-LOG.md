@@ -4,6 +4,16 @@ This log registers the technical design, architectural changes, and task complet
 
 ---
 
+## [2026-06-07] Task 9: AI Bot Option for Snake 2 in Single-Player/Co-op Mode
+- **Status**: Completed.
+- **Details**:
+  - Implemented an AI Bot option for Snake 2 enabled/disabled via the `B` / `b` key in single-player/co-op mode.
+  - Added BFS pathfinding to navigate Snake 2 towards the active target (either food or power-up).
+  - Implemented a fallback survival algorithm that uses a BFS flood-fill (up to 50 depth) to identify the safest immediate move when a direct path to the target is blocked.
+  - Configured manual override detection: pressing any Arrow Key automatically deactivates the bot, letting the human player assume control of Snake 2 instantly.
+  - Redesigned footer controls and playstyle divider text to fit within TUI column limits (e.g. `[WASD/Bot]` or `[WASD/Arrows]`, `PLAYSTYLE: AI-BOT`).
+  - Edited: [main.go](file:///home/luke/dev/game-factory/game/main.go), [smoke.yaml](file:///home/luke/dev/game-factory/game/smoke.yaml).
+
 ## [2026-06-07] Task 8: Power-ups (Shield & Freeze) and Pause State Timer Tracking
 - **Status**: Completed.
 - **Details**:

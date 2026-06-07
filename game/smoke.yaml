@@ -78,3 +78,17 @@ steps:
   # Advance one more tick to see active status
   - advance: 150ms
   - shot: shield_active_status
+
+  # --- Test AI Bot functionality ---
+  # Enable AI Bot for Snake 2 (rune 'b' from seat 0)
+  - seat: 0
+  - rune: 'b'
+  - shot: bot_enabled_state
+  # Advance time by 450ms (3 ticks) to let the bot steer and move Snake 2 automatically
+  - advance: 450ms
+  - shot: bot_moved_snake2
+  # Press arrow key left from seat 1 to manually steer Snake 2 and automatically disable bot
+  - seat: 1
+  - key: left
+  - advance: 150ms
+  - shot: bot_manually_disabled
