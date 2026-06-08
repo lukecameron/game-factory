@@ -25,7 +25,7 @@ type Game struct{}
 
 func (Game) Meta() kit.GameMeta {
 	return kit.GameMeta{
-		Slug:             "game",
+		Slug:             "neon-snake",
 		Name:             "Neon Snake",
 		ShortDescription: "A retro-inspired premium Neon Snake game built for TUI.",
 		MinPlayers:       1,
