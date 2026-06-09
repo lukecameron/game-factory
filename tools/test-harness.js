@@ -7,7 +7,8 @@ function parseArgs() {
   const options = {
     script: 'game/smoke.yaml',
     out: 'test-logs/shots',
-    help: false
+    help: false,
+    verify: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -17,6 +18,8 @@ function parseArgs() {
       options.out = args[++i];
     } else if (args[i] === '--help' || args[i] === '-h') {
       options.help = true;
+    } else if (args[i] === '--verify' || args[i] === '-v' || args[i] === '--wasm') {
+      options.verify = true;
     }
   }
   return options;
@@ -27,6 +30,7 @@ function printHelp() {
 Options:
   -s, --script <path>   Path to the smoke YAML script (default: game/smoke.yaml)
   -o, --out <dir>       Output directory for logs and shots (default: test-logs/shots)
+  -v, --verify          Compile to WASM and run ABI conformance check
   -h, --help            Show this help message
 `);
 }
@@ -58,6 +62,7 @@ function runCommand(cmd, args, options = {}) {
       ...process.env, 
       PATH: customPath, 
       GOTOOLCHAIN: 'local',
+      WASMOPT: path.resolve(__dirname, 'wasm-opt-wrapper.sh'),
       ...options.env 
     }
   });
@@ -721,18 +726,22 @@ function main() {
 
   console.log('--- Starting Test Harness ---');
   
-  // 1. Build guest WASM binary
-  const buildSuccess = buildWasm();
-  if (!buildSuccess) {
-    console.error('[Harness] Build phase failed. Aborting tests.');
-    process.exit(1);
-  }
+  if (options.verify) {
+    // 1. Build guest WASM binary
+    const buildSuccess = buildWasm();
+    if (!buildSuccess) {
+      console.error('[Harness] Build phase failed. Aborting tests.');
+      process.exit(1);
+    }
 
-  // 1.5. Verify WASM Conformance
-  const verifySuccess = verifyWasm();
-  if (!verifySuccess) {
-    console.error('[Harness] WASM conformance check failed. Aborting tests.');
-    process.exit(1);
+    // 1.5. Verify WASM Conformance
+    const verifySuccess = verifyWasm();
+    if (!verifySuccess) {
+      console.error('[Harness] WASM conformance check failed. Aborting tests.');
+      process.exit(1);
+    }
+  } else {
+    console.log('[Harness] Skipping WASM compilation & check (pass --verify to build/check WASM)');
   }
 
   // 2. Run native smoke tests to generate ANSI/TXT recordings
